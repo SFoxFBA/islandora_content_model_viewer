@@ -92,7 +92,8 @@ class Collection {
   public function __construct($pid) {
     $this->pid = $pid;
     $sort = array(new stdClass(), new stdClass());
-    $sort[0]->property = 'label';
+    //$sort[0]->property = 'label';
+    $sort[0]->property = 'created';
     $sort[0]->direction = 'ASC';
     $filter = array(new stdClass());
     $filter[0]->property = 'label';
@@ -114,28 +115,32 @@ class Collection {
     $filter = isset($_REQUEST['filter']) ? json_decode($_REQUEST['filter']) : $this->default['filter'];
     $sort = isset($_REQUEST['sort']) ? json_decode($_REQUEST['sort']) : $this->default['sort'];
     $search = isset($filter[0]->value) ? trim($filter[0]->value) : NULL;
-    $query = "select ?object ?title ?model from <#ri> where {
+    $query = "select ?object ?title ?model ?created from <#ri> where {
       <info:fedora/{$this->pid}> <fedora-rels-ext:hasResource> ?object .
       ?object <fedora-model:state> <fedora-model:Active>;
       <fedora-model:label> ?title;
       <fedora-model:hasModel> ?model;
+      <fedora-model:createdDate> ?created;
       FILTER(!sameTerm(?model, <info:fedora/fedora-system:FedoraObject-3.0>) &&
            !sameTerm(?model, <info:fedora/si:resourceCModel>))
     }
+    ORDER BY ?created
     OFFSET {$offset}
     LIMIT {$limit}";
 
     if (isset($search) && $search != '') {
     
-     	$query = "select ?object ?title ?model from <#ri> where {
+     	$query = "select ?object ?title ?model ?created from <#ri> where {
       		<info:fedora/{$this->pid}> <fedora-rels-ext:hasResource> ?object .
       		?object <fedora-model:state> <fedora-model:Active>;
       		<fedora-model:label> ?title;
       		<fedora-model:hasModel> ?model;
+                <fedora-model:createdDate> ?created;
                 FILTER(regex(?title, '{$search}', 'i'))
       		FILTER(!sameTerm(?model, <info:fedora/fedora-system:FedoraObject-3.0>) &&
            		!sameTerm(?model, <info:fedora/si:resourceCModel>))
     		}
+                ORDER BY ?created
     		OFFSET {$offset}
     		LIMIT {$limit}";
     }
