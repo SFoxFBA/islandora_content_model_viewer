@@ -1,0 +1,52 @@
+
+/*
+** HTML elements
+*/
+.drupal-content fieldset {
+  margin-bottom: 1em;
+  padding: .5em;
+}
+.drupal-content form {
+  margin: 0;
+  padding: 0;
+}
+.drupal-content hr {
+  height: 1px;
+  border: 1px solid gray;
+}
+.drupal-content img {
+  border: 0;
+}
+.drupal-content table {
+  border-collapse: collapse;
+}
+.drupal-content th {
+  text-align: left; /* LTR */
+  padding-right: 1em; /* LTR */
+  border-bottom: 3px solid #ccc;
+}
+
+/*
+** Markup free clearing
+** Details: http://www.positioniseverything.net/easyclearing.html
+*/
+.drupal-content .clear-block:after {
+  content: ".";
+  display: block;
+  height: 0;
+  clear: both;
+  visibility: hidden;
+}
+
+.drupal-content .clear-block {
+  display: inline-block;
+}
+
+/* Hides from IE-mac \*/
+* html .clear-block {
+  height: 1%;
+}
+.drupal-content .clear-block {
+  display: block;
+}
+/* End hide from IE-mac */

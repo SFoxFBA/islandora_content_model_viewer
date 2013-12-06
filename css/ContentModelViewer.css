@@ -1,0 +1,185 @@
+/*
+    Document   : ADRBasic.inc
+    Created on : 4-Oct-2010, 4:00:18 PM
+    Author     : default
+    Description:
+        Purpose of the stylesheet follows.
+*/
+
+#playerFLV embed {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+#playerFlexPaper embed {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.add-datastream-icon {
+  background-image:url(../images/icon/add.png);
+}
+
+.edit-datastream-icon {
+  background-image:url(../images/icon/edit.gif);
+}
+
+.view-datastream-icon {
+  background-image:url(../images/icon/view.gif);
+}
+
+.download-datastream-icon {
+  background-image:url(../images/icon/blue_down.png);
+}
+
+.remove-datastream-icon {
+  background-image:url(../images/icon/remove.png);
+}
+
+.file-item {
+  padding-top: 5px;
+  padding-bottom: 10px;
+  cursor: pointer;
+}
+.file-item.x-item-selected {
+  background-color: #D3E1F1 !important;
+}
+
+.file-item .file-item-label {
+  text-align: center;
+}
+
+.file-item .file-item-img {
+  margin-left: auto;
+  margin-right: auto;
+  display: block;
+  height: 96px;
+  width: 96px;
+}
+
+.file-item .file-item-dsid {
+  text-align: center;
+  font-size: 1.3em;
+}
+
+.member-item {
+  padding: 2px 5px;
+  height: 36px;
+}
+
+.member-item.odd {
+  background-color: #FFFFFF;
+}
+
+.member-item.even {
+  background-color: #EEEEEE;
+}
+
+.member-item.unedited {
+  background-color: #FFBF00;
+}
+
+.x-dataview-item > .member-item {
+  border-bottom-style: dashed;
+  border-bottom-color: #D0D0D0;
+  border-width: 1px;
+}
+
+.x-dataview-item:last-child > .member-item {
+  border-bottom-style: none;
+}
+
+.x-dataview-item.x-item-selected {
+  background-color: #D3E1F1 !important;
+}
+
+.member-item-label {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  padding-left: 2px;
+}
+
+.member-item-description {
+  overflow: hidden;
+  max-height: 90px;
+}
+
+.member-item-img {
+  margin-left: auto;
+  margin-right: auto;
+  height: 32px;
+  width: 32px;
+  display: block;
+}
+/*
+.member-item-label {
+    text-align: center;
+
+}
+
+.member-item-description {
+    text-align: left;
+    margin-left: auto;
+    margin-right: auto;
+}*/
+
+.x-list-selected {
+  background-color: #ffff00;
+}
+
+.x-list-over {
+  background-color: #eeeebb;
+}
+
+.x-btn .direction-asc {
+  background-image: url("../lib/ext/resources/themes/images/default/grid/sort_asc.gif");
+  background-position: 4px 6px !important;
+}
+
+.x-btn .direction-desc {
+  background-image: url("../lib/ext/resources/themes/images/default/grid/sort_desc.gif");
+  background-position: 4px 6px !important;
+}
+
+.x-btn-inner {
+
+}
+
+.content-model-viewer {
+  margin-top: 1em;
+}
+/*.x-tree-icon { display: none !important; }*/
+
+.x-tree-bold div{ font-weight: bold; }
+
+.drupal-content div.messages {
+    padding: 10px;
+    margin: 20px;
+    border-style: solid;
+    border-width: 1px;
+    font-weight: bold;
+    margin-bottom: 1.5em;
+    overflow: hidden;
+    padding: 14px;
+}
+
+.drupal-content div.status {
+  background-color: #EAF8E4;
+  border-color: #8DC478;
+  color: #3E642F;
+}
+
+.drupal-content div.warning {
+  background: #FFFFDD;
+  border-color: #EED300;
+  color: #745500;
+}
+
+.drupal-content div.error {
+  background-color: #FFF2F2;
+  border-color: #CC0000;
+  color: #B20000;
+}

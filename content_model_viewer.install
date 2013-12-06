@@ -1,0 +1,352 @@
+<?php
+
+/**
+ * @file
+ *
+ * Installs the required database schema for storing display and control properties for the viewer.
+ */
+module_load_include('inc', 'content_model_viewer', 'content_model_viewer.db');
+
+/**
+ * Implements hook_update_N().
+ */
+function content_model_viewer_update_6000(&$sandbox) {
+  $ret = array();
+  $spec = array(
+    'description' => t('The default DSID to display in the viewer.'),
+    'type' => 'varchar',
+    'length' => 64,
+    'not null' => TRUE,
+    'default' => 'SWF',
+  );
+  db_add_field($ret, CONTENT_MODEL_VIEWER_SETTINGS_TABLE, 'default_datastream', $spec);
+  return $ret;
+}
+
+/**
+ * Implements hook_requirements().
+ */
+function content_model_viewer_requirements($phase) {
+  module_load_include('inc', 'extjs', 'extjs.utils');
+  if($phase != 'install') {
+    return;
+  }
+  $t = get_t();
+  $requirements = array(
+    'content_model_viewer' => array('title' => $t('ExtJS Library'))
+  );
+  $version = extjs_get_version();
+  if (version_compare($version, '4.1.0') >= 0) {
+    $requirements['content_model_viewer']['severity'] = REQUIREMENT_OK;
+    $requirements['content_model_viewer']['value'] = $version;
+  }
+  else {
+    $requirements['content_model_viewer']['severity'] = REQUIREMENT_ERROR;
+    $requirements['content_model_viewer']['value'] = $version;
+    $requirements['content_model_viewer']['description'] = $t('The <a href="@yui">Content Model Viewer</a> plugin requires ExtJS library version 4.1.0 or higher. <a href="@download">Download</a> and extract it into the <code>@directory</code> directory. Rename the extracted folder to <code>@library-folder</code>.', array(
+      '@extjs' => 'http://www.sencha.com/',
+      '@download' => 'http://www.sencha.com/products/extjs/download?page=a',
+      '@directory' => 'sites/all/libraries',
+      '@library-folder' => 'extjs')
+    );
+  }
+  return $requirements;
+}
+
+/**
+ * Implementation of hook_install().
+ */
+function content_model_viewer_install() {
+  drupal_install_schema('content_model_viewer');
+  content_model_viewer_add_foreign_key_constraints();
+  content_model_viewer_add_default_settings();
+  content_model_viewer_set_default_rules();
+}
+
+/**
+ * Implementation of hook_uninstall.
+ */
+function content_model_viewer_uninstall() {
+  drupal_uninstall_schema('content_model_viewer');
+}
+
+/**
+ * Adds foreign key constraints for all settings tables.
+ *
+ * On Delete of a Settings all tables with foreign key constrains will cascade the deletes.
+ */
+function content_model_viewer_add_foreign_key_constraints() {
+  $table = CONTENT_MODEL_VIEWER_SETTINGS_TABLE;
+  db_query("ALTER TABLE `{{$table}}` ENGINE = InnoDB");
+  $constraint_query = <<<EOT
+  ALTER TABLE `{%table%}` ADD CONSTRAINT `{%table%}_model_id`
+  FOREIGN KEY (`model_id`)
+  REFERENCES `{$table}` (`id`)
+  ON DELETE CASCADE
+  ON UPDATE NO ACTION
+EOT;
+  $tables = array(
+    CONTENT_MODEL_VIEWER_DATASTREAM_MIMETYPE_RULES_TABLE,
+    CONTENT_MODEL_VIEWER_DATASTREAM_DSID_RULES_TABLE,
+    CONTENT_MODEL_VIEWER_DATASTREAM_RELS_VIEW_DERIVED_RULES_TABLE,
+    CONTENT_MODEL_VIEWER_DATASTREAM_DSID_VIEW_DERIVED_RULES_TABLE
+  );
+  foreach ($tables as $table) {
+    db_query("ALTER TABLE `{{$table}}` ENGINE = InnoDB");
+    $query = str_replace('%table%', $table, $constraint_query);
+    db_query($query);
+  }
+}
+
+/**
+ * Add the default settings model, this should not be removed from the database, unless the module
+ * is being uninstalled.
+ */
+function content_model_viewer_add_default_settings() {
+  $row = new stdClass();
+  db_query("INSERT INTO {%s} (`id`, `pid`, `view`, `download`) VALUES ('%d', 'default', '1', '1')", CONTENT_MODEL_VIEWER_SETTINGS_TABLE, CONTENT_MODEL_VIEWER_DEFAULT_SETTINGS_MODEL_ID);
+}
+
+/**
+ * Clears the default Settings and restores the default Settings.
+ */
+function content_model_viewer_set_default_rules() {
+  // Hide Fedora Specific Datastreams.
+  $table = CONTENT_MODEL_VIEWER_DATASTREAM_DSID_RULES_TABLE;
+  $model_id = CONTENT_MODEL_VIEWER_DEFAULT_SETTINGS_MODEL_ID;
+  $rule = CONTENT_MODEL_VIEWER_DATASTREAM_DSID_RULE_TYPE_EXACT;
+  $hidden = array('POLICY', 'DC', 'RELS-EXT', 'RELS-INT', 'ISLANDORACM', 'COLLECTION_POLICY');
+  foreach ($hidden as $dsid) {
+    db_query("INSERT INTO {%s} (`model_id`, `dsid`, `type`, `view`, `download`) VALUES ('%d', '%s', '%d', '0', '0')", $table, $model_id, $dsid, $rule);
+  }
+  // Redirect PDF's to SWF's
+  $table = CONTENT_MODEL_VIEWER_DATASTREAM_DSID_VIEW_DERIVED_RULES_TABLE;
+  $src_dsid = 'PDF';
+  $src_type = CONTENT_MODEL_VIEWER_DATASTREAM_DSID_RULE_TYPE_EXACT;
+  $dest_dsid = 'SWF';
+  $dest_type = CONTENT_MODEL_VIEWER_DATASTREAM_DSID_RULE_TYPE_EXACT;
+  db_query("INSERT INTO {%s} (`model_id`, `src_dsid`, `src_type`, `dest_dsid`, `dest_type`) VALUES ('%d', '%s', '%d', '%s', '%d')", $table, $model_id, $src_dsid, $src_type, $dest_dsid, $dest_type);
+  // RELS-INT
+  $table = CONTENT_MODEL_VIEWER_DATASTREAM_RELS_VIEW_DERIVED_RULES_TABLE;
+  $mime = 'application/pdf';
+  $xpath = '/*[local-name() = "hasSWF"]/@rdf:resource';
+  $matching = '[^\/]*$';
+  $type = CONTENT_MODEL_VIEWER_DATASTREAM_DSID_RULE_TYPE_REGEX;
+  db_query("INSERT INTO {%s} (`model_id`, `mime`, `xpath`, `matching`, `type`) VALUES ('%d', '%s', '%d', '%s', '%d')", $table, $model_id, $mime, $xpath, $matching, $type);
+}
+
+/**
+ * Implementation of hook_schema.
+ *
+ * @return array
+ */
+function content_model_viewer_schema() {
+  $schema[CONTENT_MODEL_VIEWER_DATASTREAM_RELS_VIEW_DERIVED_RULES_TABLE] = array(
+    'description' => t(''),
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'not null' => TRUE,
+      ),
+      'model_id' => array(
+        'type' => 'int',
+        'not null' => TRUE
+      ),
+      'mime' => array(
+        'description' => t('A MIME type.'),
+        'type' => 'varchar',
+        'length' => 256,
+        'not null' => TRUE,
+      ),
+      'xpath' => array(
+        'description' => t('An XPath type.'),
+        'type' => 'varchar',
+        'length' => 256,
+        'not null' => TRUE,
+      ),
+      'matching' => array(
+        'description' => t('A Regex or string to match the value returned from XPath.'),
+        'type' => 'varchar',
+        'length' => 256,
+        'not null' => TRUE,
+      ),
+      'type' => array(
+        'description' => t('The type of value within dsid.'),
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => TRUE,
+        'default' => CONTENT_MODEL_VIEWER_DATASTREAM_DSID_RULE_TYPE_EXACT // Expected to 0 or 1, where 0 is exact and 1 in regex.
+      ),
+    ),
+    'primary key' => array('id'),
+    'indexes' => array(
+      'model_id' => array('model_id'),
+    ),
+  );
+  $schema[CONTENT_MODEL_VIEWER_DATASTREAM_DSID_VIEW_DERIVED_RULES_TABLE] = array(
+    'description' => t(''),
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'not null' => TRUE,
+      ),
+      'model_id' => array(
+        'type' => 'int',
+        'not null' => TRUE
+      ),
+      'src_dsid' => array(
+        'description' => t('A MIME type.'),
+        'type' => 'varchar',
+        'length' => 256,
+        'not null' => TRUE,
+      ),
+      'src_type' => array(
+        'description' => t('The type of value within dsid.'),
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => TRUE,
+        'default' => CONTENT_MODEL_VIEWER_DATASTREAM_DSID_RULE_TYPE_EXACT // Expected to 0 or 1, where 0 is exact and 1 in regex.
+      ),
+      'dest_dsid' => array(
+        'description' => t('A Regex or string to match the value returned from XPath.'),
+        'type' => 'varchar',
+        'length' => 256,
+        'not null' => TRUE,
+      ),
+      'dest_type' => array(
+        'description' => t('The type of value within dsid.'),
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => TRUE,
+        'default' => CONTENT_MODEL_VIEWER_DATASTREAM_DSID_RULE_TYPE_EXACT // Expected to 0 or 1, where 0 is exact and 1 in regex.
+      ),
+    ),
+    'primary key' => array('id'),
+    'indexes' => array(
+      'model_id' => array('model_id'),
+    ),
+  );
+  $schema[CONTENT_MODEL_VIEWER_DATASTREAM_MIMETYPE_RULES_TABLE] = array(
+    'description' => t('This table is used to store rules for displaying/viewing/downloading datastreams for non-admin users.'),
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'not null' => TRUE,
+      ),
+      'model_id' => array(
+        'type' => 'int',
+        'not null' => TRUE
+      ),
+      'mime' => array(
+        'description' => t('A MIME type.'),
+        'type' => 'varchar',
+        'length' => 256,
+        'not null' => TRUE,
+      ),
+      'view' => array(
+        'description' => t('TRUE if the user is allowed to view datastreams that match this rule FALSE otherwise.'),
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => TRUE,
+        'default' => 1,
+      ),
+      'download' => array(
+        'description' => t('TRUE if the user is allowed to download datastreams that match this rule FALSE otherwise.'),
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => TRUE,
+        'default' => 1,
+      ),
+    ),
+    'primary key' => array('id'),
+    'indexes' => array(
+      'model_id' => array('model_id'),
+    ),
+  );
+  $schema[CONTENT_MODEL_VIEWER_DATASTREAM_DSID_RULES_TABLE] = array(
+    'description' => t('This table is used to store rules for displaying/viewing/downloading datastreams for non-admin users.'),
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'not null' => TRUE,
+      ),
+      'model_id' => array(
+        'type' => 'int',
+        'not null' => TRUE
+      ),
+      'dsid' => array(
+        'description' => t('A regular expression for matching against a Datastream ID.'),
+        'type' => 'varchar',
+        'length' => 256,
+        'not null' => TRUE,
+      ),
+      'type' => array(
+        'description' => t('The type of value within dsid.'),
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => TRUE,
+        'default' => CONTENT_MODEL_VIEWER_DATASTREAM_DSID_RULE_TYPE_EXACT // Expected to 0 or 1, where 0 is exact and 1 in regex.
+      ),
+      'view' => array(
+        'description' => t('TRUE if the user is allowed to view datastreams that match this rule FALSE otherwise.'),
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => TRUE,
+        'default' => 1,
+      ),
+      'download' => array(
+        'description' => t('TRUE if the user is allowed to download datastreams that match this rule FALSE otherwise.'),
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => TRUE,
+        'default' => 1,
+      ),
+    ),
+    'primary key' => array('id'),
+    'indexes' => array(
+      'model_id' => array('model_id'),
+    ),
+  );
+  /* Defines the point of customization */
+  $schema[CONTENT_MODEL_VIEWER_SETTINGS_TABLE] = array(
+    'description' => t('This table is used to store associations between XML Form API style form definitions, and the Content models that use them.'),
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'not null' => TRUE,
+      ),
+      'pid' => array(
+        'description' => t('The content model pid.'),
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => TRUE
+      ),
+      'default_datastream' => array(
+        'description' => t('The default DSID to display in the viewer.'),
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => TRUE,
+        'default' => 'SWF'
+      ),
+      'view' => array(
+        'description' => t('TRUE if the user is allowed to view datastreams that match this rule FALSE otherwise.'),
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => TRUE,
+        'default' => 1,
+      ),
+      'download' => array(
+        'description' => t('TRUE if the user is allowed to download datastreams that match this rule FALSE otherwise.'),
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => TRUE,
+        'default' => 1,
+      ),
+    ),
+    'primary key' => array('id'),
+    'unique keys' => array(
+      'pid' => array('pid')
+    ),
+  );
+  return $schema;
+}
