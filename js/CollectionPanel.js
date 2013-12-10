@@ -9,7 +9,6 @@ Ext.onReady(function () {
     itemTpl: new Ext.XTemplate(
       '<tpl for=".">',
       ' <tpl if="originalMetadata">',
-      '   <div class="member-item {[xindex % 2 === 0 ? "even" : "odd"]} unedited">',
       '    <span style="float:left;text-align:center">',
       '     <img class="member-item-img" src="{tn}"></img>',
       '    </span>',
@@ -17,7 +16,7 @@ Ext.onReady(function () {
       '   </div>',
       ' </tpl>',
       ' <tpl if="!originalMetadata">',
-      '   <div class="member-item {[xindex % 2 === 0 ? "even" : "odd"]} edited">',
+      '   <div class="member-item">',
       '    <span style="float:left;text-align:center">',
       '     <img class="member-item-img" src="{tn}"></img>',
       '    </span>',

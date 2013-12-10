@@ -1444,7 +1444,6 @@ function content_model_viewer_edit_metadata_form(array &$form_state, $pid) {
   $client = $connection_helper->getSoapClient(variable_get('fedora_soap_url', 'http://localhost:8080/fedora/services/access?wsdl'));
   try {
     $edit_form = new EditObjectMetadataForm();
-    //var_dump($form_state);
     $output = $edit_form->create($pid, $client, $form_state);
     $output['which_action'] = array(
       '#type' => 'hidden',
@@ -1691,9 +1690,9 @@ function content_model_viewer_ingest_metadata_form(array &$form_state, $collecti
  * @param array $form_state
  */
 function content_model_viewer_ingest_metadata_form_validate(array &$form, array &$form_state) {
-    echo 'STEP:'.$form_state['storage']['step'];
-    throw new Exception('DING DING 2');
-    exit();
+    //echo 'STEP:'.$form_state['storage']['step'];
+    //throw new Exception('DING DING 2');
+    //exit();
   if ($form_state['storage']['step'] == 1) {
     $form_state['storage']['step']++;
     $form_state['rebuild'] = TRUE;

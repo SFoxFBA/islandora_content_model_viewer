@@ -92,7 +92,8 @@ class Collection {
   public function __construct($pid) {
     $this->pid = $pid;
     $sort = array(new stdClass(), new stdClass());
-    $sort[0]->property = 'label';
+    //$sort[0]->property = 'label';
+    $sort[0]->property = 'created';
     $sort[0]->direction = 'ASC';
     $filter = array(new stdClass());
     $filter[0]->property = 'label';
@@ -113,10 +114,45 @@ class Collection {
     $limit = isset($_REQUEST['limit']) ? $_REQUEST['limit'] : 5;
     $filter = isset($_REQUEST['filter']) ? json_decode($_REQUEST['filter']) : $this->default['filter'];
     $sort = isset($_REQUEST['sort']) ? json_decode($_REQUEST['sort']) : $this->default['sort'];
-    $results = $this->findMembers();
-    $results = $this->filter($results, $filter);
+    $search = isset($filter[0]->value) ? trim($filter[0]->value) : NULL;
+    $query = "select ?object ?title ?model ?created from <#ri> where {
+      <info:fedora/{$this->pid}> <fedora-rels-ext:hasResource> ?object .
+      ?object <fedora-model:state> <fedora-model:Active>;
+      <fedora-model:label> ?title;
+      <fedora-model:hasModel> ?model;
+      <fedora-model:createdDate> ?created;
+      FILTER(!sameTerm(?model, <info:fedora/fedora-system:FedoraObject-3.0>) &&
+           !sameTerm(?model, <info:fedora/si:resourceCModel>))
+    }
+    ORDER BY ?created
+    OFFSET {$offset}
+    LIMIT {$limit}";
+
+    if (isset($search) && $search != '') {
+    
+     	$query = "select ?object ?title ?model ?created from <#ri> where {
+      		<info:fedora/{$this->pid}> <fedora-rels-ext:hasResource> ?object .
+      		?object <fedora-model:state> <fedora-model:Active>;
+      		<fedora-model:label> ?title;
+      		<fedora-model:hasModel> ?model;
+                <fedora-model:createdDate> ?created;
+                FILTER(regex(?title, '{$search}', 'i'))
+      		FILTER(!sameTerm(?model, <info:fedora/fedora-system:FedoraObject-3.0>) &&
+           		!sameTerm(?model, <info:fedora/si:resourceCModel>))
+    		}
+                ORDER BY ?created
+    		OFFSET {$offset}
+    		LIMIT {$limit}";
+    }
+
+    $results = $this->findMembersBySparqlQuery($query);
     $results = $this->sort($results, $sort);
-    list($results, $count) = $this->limit($results, $offset, $limit);
+    $count = 0; 
+    $count_array = $this->getChildCountOfResources($this->pid);
+    if (isset($count_array)) {
+           $count = $count_array[1];
+    }
+
     $results = $this->populate($results, TRUE);
     return array($results, $count);
   }
@@ -148,6 +184,32 @@ class Collection {
       $pid <fedora-model:state> <fedora-model:Active> and
       $object <fedora-rels-ext:hasResource> $pid or
       $object <fedora-rels-ext:hasConcept> $pid)';
+    $query = 'select $object $title ' . $count . ' from <#ri> where
+      $object <mulgara:is>  <info:fedora/' . $pid . '> and
+      $object <fedora-model:label> $title';
+    module_load_include('inc', 'fedora_repository', 'CollectionClass');
+    $collection = new CollectionClass();
+    $results = $collection->getRelatedObjects($pid, 1000000, NULL, $query);
+    $results = trim($results);
+    if ($results != '') {
+      $document = new DOMDocument();
+      $document->loadXML($results);
+      $path = new DOMXPath($document);
+      $path->registerNamespace('sparql', 'http://www.w3.org/2001/sw/DataAccess/rf1/result');
+      $results = $path->query('//sparql:result');
+      $label = $this->getQueryResultValue('sparql:title', $results->item(0), $path);
+      $count = $this->getQueryResultValue('sparql:k0', $results->item(0), $path);
+      return array($label, $count);
+    }
+    return array();
+  }
+ 
+  // Counts resources.
+  public function getChildCountOfResources($pid) {
+    $count = 'count(select $pid from <#ri> where
+      $pid <fedora-model:state> <fedora-model:Active> and
+      $object <fedora-rels-ext:hasResource> $pid 
+      )';
     $query = 'select $object $title ' . $count . ' from <#ri> where
       $object <mulgara:is>  <info:fedora/' . $pid . '> and
       $object <fedora-model:label> $title';
@@ -229,6 +291,15 @@ class Collection {
   }
 
   /**
+   * Runs a SPARQL query and returns the results in a array.
+   *
+   * @return array
+   */
+  private function findMembersBySparqlQuery($query) {
+    return $this->queryBySparql($query, TRUE);
+  }
+
+  /**
    * Launch a SPARQL query. Returns all members found up to 1,000,000 results.
    *
    * @param string $query
@@ -240,6 +311,7 @@ class Collection {
     module_load_include('inc', 'fedora_repository', 'CollectionClass');
     $collection = new CollectionClass();
     $results = $collection->getRelatedObjects($this->pid, 1000000, NULL, $query);
+    file_save_data(print_r($results, TRUE), '/tmp/log_resource_display.txt', FILE_EXISTS_RENAME);
     $results = trim($results);
     if ($results != '') {
       $document = new DOMDocument();
@@ -253,6 +325,31 @@ class Collection {
     return array();
   }
 
+   /**
+   * Launch a SPARQL query. Returns all members found up to 1,000,000 results.
+   *
+   * @param string $query
+   *   SPARQL query.
+   *
+   * @return array
+   */
+  private function queryBySparql($query) {
+    module_load_include('inc', 'fedora_repository', 'CollectionClass');
+    $collection = new CollectionClass();
+    $results = $collection->getRelatedObjectsBySparql($this->pid, 1000000, NULL, $query);
+    file_save_data(print_r($results, TRUE), '/tmp/log_resource_display_sparql.txt', FILE_EXISTS_RENAME);
+    $results = trim($results);
+    if ($results != '') {
+      $document = new DOMDocument();
+      $document->loadXML($results);
+      $path = new DOMXPath($document);
+      $path->registerNamespace('sparql', 'http://www.w3.org/2001/sw/DataAccess/rf1/result');
+      $results = $path->query('//sparql:result');
+      $num_results = $results->length;
+      return ($num_results > 0) ? $this->processQueryResults($results, $path) : array();
+    }
+    return array();
+  }
   /**
    * Process the returned query results and generate the appropriate array of values for each result.
    *
