@@ -9,11 +9,13 @@ Ext.onReady(function () {
     itemTpl: new Ext.XTemplate(
       '<tpl for=".">',
       ' <tpl if="originalMetadata">',
+      '   <div class="member-item">',
       '    <span style="float:left;text-align:center">',
       '     <img class="member-item-img" src="{tn}"></img>',
       '    </span>',
       '    <div class="member-item-label">{label}</div>',
       '   </div>',
+      '  </div>',
       ' </tpl>',
       ' <tpl if="!originalMetadata">',
       '   <div class="member-item">',
