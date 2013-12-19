@@ -94,9 +94,27 @@ function content_model_viewer_menu() {
     'access arguments' => array(PERM_CONTENT_MODEL_VIEWER_MODIFY_DATASTEAM_PROPERTIES),
     'type' => MENU_CALLBACK,
   );
+  $items['viewer/source/%/dest/%/move/%'] = array(
+    'page callback' => 'content_model_viewer_move_object',
+    'page arguments' => array(2,4,6),
+    'access arguments' => array(PERM_CONTENT_MODEL_VIEWER_PURGE_OBJECTS),
+    'type' => MENU_CALLBACK,
+  );
+  $items['viewer/%/associate/%'] = array(
+    'page callback' => 'content_model_viewer_associate_object',
+    'page arguments' => array(1,3),
+    'access arguments' => array(PERM_CONTENT_MODEL_VIEWER_PURGE_OBJECTS),
+    'type' => MENU_CALLBACK,
+  );
   $items['viewer/%/purge'] = array(
     'page callback' => 'content_model_viewer_purge_object',
     'page arguments' => array(1),
+    'access arguments' => array(PERM_CONTENT_MODEL_VIEWER_PURGE_OBJECTS),
+    'type' => MENU_CALLBACK,
+  );
+  $items['viewer/%/item_information/%'] = array(
+    'page callback' => 'content_model_viewer_item_information',
+    'page arguments' => array(1, 3),
     'access arguments' => array(PERM_CONTENT_MODEL_VIEWER_PURGE_OBJECTS),
     'type' => MENU_CALLBACK,
   );
@@ -1007,7 +1025,94 @@ function content_model_viewer_properties($pid) {
       exit();
   }
 }
+function content_model_viewer_move_object($source, $recipient, $related_pids_csv){
+  //echo "$source $recipient $related_pids_csv";
+  //exit();
+  $_SESSION['messages'] = '';
+  //watchdog("BBBCMB","Complete Association");
+  $cmvaobl = content_model_viewer_associate_object_business_logic($recipient, $related_pids_csv);
+  $cmvuobl = content_model_viewer_unassociate_object_business_logic($source, $related_pids_csv);
+  $success = $cmvaobl['success'] && $cmvuobl['success']; 
+  $msgs = array();
+  $toReturn = array('operation' => 'move', 'success' => $success, 'msg' => $msgs, 'suboperations' => array($cmvaobl,$cmvuobl)); 
+  echo json_encode($toReturn);
+  exit();
+}
+function content_model_viewer_associate_object($recipient, $related_pids_csv){
+  $_SESSION['messages'] = '';
+  //watchdog("BBBCMB","Complete Association");
+  $cmvaobl = content_model_viewer_associate_object_business_logic($recipient, $related_pids_csv);
+  echo json_encode($cmvaobl);
+  exit();
+}
+function content_model_viewer_associate_object_business_logic($recipient, $related_pids_csv){
+  $toReturn = array();
+  module_load_include('inc', 'fedora_repository', 'api/fedora_item');
+  $related_pids = explode(',',$related_pids_csv);
+  $msgs = array();
+  $success = TRUE;
+  //watchdog("BBBCMV","starting associate object: $recipient, $related_pids_csv");
+  $repo = tuque_wrapper_get_repository_instance();
+  $description = $repo->api->a->describeRepository();
+  //watchdog("BBBCMB","Associating: $recipient, $related");
+  
+  //watchdog("BBBCMB","repo obtain, desc: ".implode("|",$description)." --");
+  $parent = $repo->getObject($recipient);
+  //watchdog("BBBCMB","parent: $parent");
+  foreach ($related_pids as $index => $related) {
+    //Do something if there is an error
+    //watchdog("BBBCMB","Associating: $recipient, $related");
+    $currmsg = array();
+    if (sidora_check_for_relationship($recipient, $related)) {
+      $currmsg['success'] = FALSE;
+      $currmsg['message'] = t('Relationship between @recipient and @related already exists', array('@recipient' => $recipient, '@related' => $related));
+    }else{
+      $child = $repo->getObject($related);
+      //watchdog("BBBCMB","child: $child");
+      $currmsg = sidora_associate_business_logic($repo, $recipient, $related, FALSE);
+    }
+    $success = $success && $currmsg['success'];
+    $msgs[] = $currmsg;
+  }
+  $toReturn = array('operation' => 'associate', 'success' => $success, 'msg' => $msgs); 
+  return $toReturn;
+}
+
+function content_model_viewer_unassociate_object_business_logic($unassociate_from, $related_pids_csv){
+  $toReturn = array();
+  module_load_include('inc', 'fedora_repository', 'api/fedora_item');
+  $related_pids = explode(',',$related_pids_csv);
+  $msgs = array();
+  $success = TRUE;
+  $repo = tuque_wrapper_get_repository_instance();
+  $description = $repo->api->a->describeRepository();
+  $parent = $repo->getObject($unassociate_from);
+  //watchdog("BBBCMB","parent: $parent");
+  foreach ($related_pids as $index => $related) {
+    $currmsg = array();
+    if (!sidora_check_for_relationship($unassociate_from, $related)) {
+      $currmsg['success'] = FALSE;
+      $currmsg['message'] = t('Relationship between @uaf and @related does not exist', array('@uaf' => $unassociate_from, '@related' => $related));
+    }else{
+      $child = $repo->getObject($related);
+      //watchdog("BBBCMB","child: $child");
+      $currmsg = sidora_unassociate_business_logic($repo, $unassociate_from, $related, FALSE);
+    }
+    $success = $success && $currmsg['success'];
+    $msgs[] = $currmsg;
+  }
+  $toReturn = array('operation' => 'unassociate', 'success' => $success, 'msg' => $msgs); 
+  return $toReturn;
+}
+
 function content_model_viewer_purge_objects($pids){
+  $_SESSION['messages'] = '';
+  $cmvpobl = content_model_viewer_purge_objects_business_logic($pids);
+  echo json_encode($cmvpobl);
+  exit();
+}
+function content_model_viewer_purge_objects_business_logic($pids){
+  $toReturn = array();
   $msgs = array();
   $success = TRUE;
   foreach ($pids as $index => $pid) {
@@ -1017,10 +1122,8 @@ function content_model_viewer_purge_objects($pids){
     $msgs[] = $currmsg;
     
   }
-  $_SESSION['messages'] = '';
-  echo json_encode(array('success' => $success, 'msg' => $msgs));
-  exit();
-  
+  $toReturn = array('success' => $success, 'msg' => $msgs);
+  return $toReturn;
 }
 /**
  * Purges the object identified by $pid.
@@ -1136,6 +1239,63 @@ function content_model_viewer_purge_object_choose_exit($pid,$shouldEchoAndExit){
   }
 
 }
+function content_model_viewer_item_information($parent_pid, $child_pids_string, $batch_action = '') { 
+  if ($batch_action == 'delete'){
+    module_load_include('inc', 'fedora_repository', 'api/fedora_item');
+    //$item = new Fedora_Item($parent_pid);
+    //var_dump($item);
+    //$xml = $item->get_datastream_dissemination('DC');
+    //var_dump($xml);
+    $child_pids = explode(",",$child_pids_string);
+    $child_pids_purged = array();
+    $child_pids_unassociated = array();
+    $success = TRUE;
+    $msgs = array();
+    foreach ($child_pids as $child_pid){ 
+      $parents = sidora_get_parents($child_pid);
+      if (count($parents)==1){
+        $true_parent = key($parents);
+        if ($true_parent == $parent_pid){
+         $msgs[] = "Should purge this (single parent):$parent_pid object:$child_pid";
+         $child_pids_purged[] = $child_pid;
+         $currmsg = content_model_viewer_purge_object_choose_exit($child_pid,FALSE);
+         $success = $success && $currmsg['success'];
+        }else{
+         //echo "Tried to remove something from not its parent:$parent_pid true_parent:".$true_parent." object:$child_pid\n";
+         $msgs[] = "Input child pid:$child_pid is not a child of input parent:$parent_pid";
+        }
+      }else{
+         $found_parent = FALSE;
+         foreach($parents as $curr_parent_pid => $curr_parent_name){
+           if ($curr_parent_pid == $parent_pid){
+             $msgs[] = "Should remove from parent:$parent_pid true_parent:".$curr_parent_pid." object:$child_pid";
+             content_model_viewer_remove_from_collection_choose_exit($child_pid, $parent_pid, TRUE);
+             $child_pids_unassociated[] = $child_pid;
+             $found_parent = TRUE;
+           }
+         }
+         if (!$found_parent){
+             $msgs[] = "Parent:$parent_pid not found in list of parents for object:$child_pid";
+         }
+      }
+      //var_dump($parents);
+    }
+    echo json_encode(array('success' => TRUE, 'purged' => $child_pids_purged, 'unassociated' => $child_pids_unassociated, 'messages' => $msgs));
+    
+    //$document = new DOMDocument();
+    //$document->loadXML($xml);
+    //$xpath = new DOMXPath($document);
+    //$result = $xpath->query('//*[local-name()="title"]');
+    //$title = $result->item(0);
+    //$result = $xpath->query('//*[local-name()="identifier"]');
+    //$identifier = $result->item(0);
+    //$variables['table'] = theme_table(array('Field', 'Value'), array(
+    //  array('Title', $title->textContent),
+    //  array('Identifier', $identifier->textContent))
+    //);
+  }
+  exit();
+}
 function content_model_viewer_wizard_step($pid, $type = 'concept') { 
   if ($type == 'wizard_purge'){
     $to_delete = $_SESSION['orig_pid_list'];
@@ -1158,23 +1318,23 @@ function content_model_viewer_wizard_step($pid, $type = 'concept') {
 }
 
 function content_model_viewer_add_object($pid, $type = 'concept') { // Ugly hacks!
-  watchdog("BBB_content_viewer_module","cmv cmvao $pid, $type");
+  //watchdog("BBB_content_viewer_module","cmv cmvao $pid, $type");
   $run_wizard_meta = ($_POST['uploaded_file_dsid'] == 'OBJ' && $_POST['wizard_check'] == TRUE);
   $form_name_test = $_POST['forms'];
-  watchdog("BBB_content_viewer_module","form_name_test:$form_name_test");
-  watchdog("BBB_content_viewer_module","general 1:". $_POST['uploaded_file_dsid'] . ' and:' . $_POST['wizard_check']);
+  //watchdog("BBB_content_viewer_module","form_name_test:$form_name_test");
+  //watchdog("BBB_content_viewer_module","general 1:". $_POST['uploaded_file_dsid'] . ' and:' . $_POST['wizard_check']);
   $cmodels = content_model_viewer_get_cmodels($pid);
   $id = $type == 'concept' ? 'add-concept-form' : 'add-resource-form';
   $action = $type == 'concept' ? 'ingest-concept' : 'ingest-resource';
-  watchdog("BBB_content_viewer_module","cmv cmvao theme $id, $pid, $action");
+  //watchdog("BBB_content_viewer_module","cmv cmvao theme $id, $pid, $action");
   $data = theme('content_model_viewer_metadata_form', $id, $pid, $action);
-  watchdog("BBB_content_viewer_module","theme complete");
+  //watchdog("BBB_content_viewer_module","theme complete");
   if ($run_wizard_meta){
     if (!empty($form_name_test)){
-      watchdog("BBB_content_viewer_module","setting form type:".$form_name_test);//$_POST['forms']);
+      //watchdog("BBB_content_viewer_module","setting form type:".$form_name_test);//$_POST['forms']);
       $_SESSION['content_model_form_name'] = $form_name_test;//_POST['forms'];
     }
-    watchdog("BBB_content_viewer_module","calling wizard-meta");
+    //watchdog("BBB_content_viewer_module","calling wizard-meta");
     $data = theme('content_model_viewer_metadata_form', $id, $pid, 'wizard-meta');
   }else{
     unset($_SESSION['pid_list']);
@@ -1202,17 +1362,20 @@ function content_model_viewer_add_object($pid, $type = 'concept') { // Ugly hack
       $css_files[] = base_path() . $path . $query_string;
     }
   }
-  watchdog("BBB_content_viewer_module","cmv cmvao completed:".$data);
+  //watchdog("BBB_content_viewer_module","cmv cmvao completed:".$data);
   header("Content-type: application/json");
   echo json_encode(array('success' => TRUE, 'data' => $data, 'func' => NULL, 'settings' => $settings, 'js' => $files, 'css' => $css_files, 'refresh' => $refresh));
   exit();
 }
 
+function content_model_viewer_remove_from_collection($child_pid, $parent_pid) {
+  content_model_viewer_remove_from_collection_choose_exit($child_pid,$parent_pid,FALSE);
+}
 
 /**
  *
  */
-function content_model_viewer_remove_from_collection($pid, $value) {
+function content_model_viewer_remove_from_collection_choose_exit($pid, $value, $internal_call) {
   module_load_include('inc', 'fedora_repository', 'CollectionClass');
   module_load_include('inc', 'fedora_repository', 'api/fedora_item');
   module_load_include('inc', 'sidora', 'includes/utils');
@@ -1232,6 +1395,9 @@ function content_model_viewer_remove_from_collection($pid, $value) {
     sidora_update_relationship(RELS_EXT_URI, $predicate, $recipient, $related, TRUE);
 
   } catch(Exception $e) {
+    if ($internal_call){
+      return FALSE;
+    }
     $code = $e->getCode();
     switch ($code) {
       case '404':
@@ -1262,9 +1428,12 @@ function content_model_viewer_remove_from_collection($pid, $value) {
     }
     exit();
   }
-
-  echo json_encode(array('success' => TRUE, 'msg' => t('Removed Relationship')));
-  exit();
+  if ($internal_call){
+    return TRUE;
+  }else{
+    echo json_encode(array('success' => TRUE, 'msg' => t('Removed Relationship')));
+    exit();
+  }
 }
 /**
  * Adds a datastream to the object identified by $pid.*
@@ -1444,6 +1613,7 @@ function content_model_viewer_edit_metadata_form(array &$form_state, $pid) {
   $client = $connection_helper->getSoapClient(variable_get('fedora_soap_url', 'http://localhost:8080/fedora/services/access?wsdl'));
   try {
     $edit_form = new EditObjectMetadataForm();
+    //var_dump($form_state);
     $output = $edit_form->create($pid, $client, $form_state);
     $output['which_action'] = array(
       '#type' => 'hidden',
