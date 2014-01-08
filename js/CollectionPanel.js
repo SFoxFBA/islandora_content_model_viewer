@@ -1,4 +1,6 @@
 Ext.onReady(function () {
+  //Ext.Loader.setConfig({enabled: true});
+  //Ext.Loader.setPath('Ext.ux.DataView', Drupal.settings.basePath+'sites/all/modules/islandora_content_model_viewer/js/extjs_plugins/ux/DataView');
   Ext.define('ContentModelViewer.widgets.CollectionDataView', {
     extend: 'Ext.view.View',
     itemId: 'collectiondataview',
@@ -6,19 +8,26 @@ Ext.onReady(function () {
     emptyText: 'No Files Available',
     deferEmptyText: false,
     deferInitialRefresh: false,
+    mixins: {
+      dragSelector: 'Ext.ux.DataView.DragSelector',
+      draggable: 'Ext.ux.DataView.Draggable'
+    },
     itemTpl: new Ext.XTemplate(
       '<tpl for=".">',
       ' <tpl if="originalMetadata">',
-      '   <div class="member-item unedited">',
+      '   <div class="member-item">',
+      '    <span class="incompleteMeta" title="Metadata incomplete"></span>',
+      '    <input class="resourceBatchSelector" type="checkbox" style="display:none;float:left;height:100%" name="{pid}"/>',
       '    <span style="float:left;text-align:center">',
       '     <img class="member-item-img" src="{tn}"></img>',
       '    </span>',
       '    <div class="member-item-label">{label}</div>',
       '   </div>',
-      '  </div>',
       ' </tpl>',
       ' <tpl if="!originalMetadata">',
       '   <div class="member-item">',
+      '    <span class="completeMeta" title="Metadata complete"></span>',
+      '    <input class="resourceBatchSelector" type="checkbox" style="display:none;float:left;height:100%" name="{pid}"/>',
       '    <span style="float:left;text-align:center">',
       '     <img class="member-item-img" src="{tn}"></img>',
       '    </span>',
@@ -38,16 +47,57 @@ Ext.onReady(function () {
         }
       }
     ),
+    initComponent: function() {
+      var me = this;
+      this.mixins.dragSelector.init(this);
+      this.mixins.draggable.init(this, {
+        ddConfig: {
+          ddGroup: 'cmvDDGroup'
+        }
+      });
+      this.callParent();
+    },
     listeners: {
+      itemclick: {
+        fn: function(view, selections, options, one, two, three){
+          //if not holding control, get rid of all highlights except whatever mouse is over
+          if (window.modifierKeysHeld.ctrl){
+            if (jQuery("[name='"+selections.get("pid")+"']").parent().parent().hasClass("x-item-selected")){
+              jQuery("[name='"+selections.get("pid")+"']").parent().parent().removeClass("x-item-selected");
+            }else{
+              jQuery("[name='"+selections.get("pid")+"']").parent().parent().addClass("x-item-selected");
+            }
+            return;
+          }
+          jQuery(".member-item").parent().each(function(num,a){$(a).removeClass("x-item-selected");});
+          jQuery("[name='"+selections.get("pid")+"']").parent().parent().addClass("x-item-selected");
+        }
+      },
       selectionchange: function (view, selections, options) {
-        var record = selections[0];
-        if (record) {
-          ContentModelViewer.functions.selectResource(record.get('pid'));
+        //var record = selections[0];
+      },
+      beforeselect: function(one, two, three, four){
+        if (window.modifierKeysHeld.ctrl){
+          return false; //Don't select current one
+        }else if(jQuery("[name='"+two.get("pid")+"']").parent().parent().hasClass("x-item-selected")){
+          return false; //expecting a click-drag when choosing one that is already there, look at mouse-up to undo
+        }else{
+          jQuery(".member-item").parent().each(function(num,a){$(a).removeClass("x-item-selected");}) //was a normal reselecting click, remove existing selected
         }
       },
       itemdblclick: function (view, record) {
         ContentModelViewer.functions.selectResource(record.get('pid'));
+      },
+      itemmousedown: {
+        fn: function (view, record, item, index, event) {
+          jQuery(".x-dd-drop-icon").addClass("sidoraDDIcon");
+        }
+      },
+      itemmouseup: {
+        fn: function (view, record, item, index, event) {
+        }
       }
+
     },
     setPid: function (pid) {
       this.pid = pid;
@@ -175,6 +225,99 @@ Ext.onReady(function () {
             store.load();
           }
         }, '->', {
+          xtype: 'combobox',
+          store: Ext.create('Ext.data.Store', {
+            model: Ext.regModel('State',{
+              fields:[
+                {type:'string', name:'name'}
+              ]
+            }),
+            data: [
+              {"name":"Delete"},
+              {"name":"Copy To..."}
+            ]
+          }),
+          displayField: 'name',
+          width: 120,
+          queryMode: 'local',
+          triggerAction: 'all',
+          emptyText:'Choose action',
+          text: 'Multi-dropdown',
+          disableKeyFilter: true,
+          editable: false,
+          listeners: {
+            'select': function (one, two, three, four){//(button, event) {
+              if (two[0].data.name == "Delete"){
+                rbs = jQuery(".x-item-selected .resourceBatchSelector");
+                var deleteThese = "";
+                for (rbsi=0; rbsi<rbs.size(); rbsi++){
+                  if (deleteThese.length > 0) deleteThese += ",";
+                  deleteThese += jQuery(rbs[rbsi]).attr("name");
+                }
+                //alert("Delete chosen:"+deleteThese);
+                if (rbs.size() == 0){
+                }else{
+                 Ext.Msg.show({
+                  title:'Delete Resources',
+                  msg: "Are you sure you want to delete "+rbs.size()+" Resources? This action cannot be undone.",
+                  buttons: Ext.Msg.YESNO,
+                  fn: function(choice) {
+                    if (choice == 'yes'){
+                      jQuery.ajax({
+                        url: Drupal.settings.basePath+"viewer/"+ContentModelViewer.properties.pids.concept+"/item_information/"+deleteThese+"/delete",
+                        success: function(responseText){
+                          response = JSON.parse(responseText);
+                          if (!response.success){
+                            Ext.Msg.alert('Status','Problem removing resources:'+response);
+                          }else{
+                            Ext.Msg.alert('Status',response.purged.length+" Resource(s) deleted and "+response.unassociated.length+" Resource(s) un-associated from the current object.");
+                            ContentModelViewer.functions.selectConcept();
+                            ContentModelViewer.functions.refreshTreeParents(ContentModelViewer.properties.pids.concept);
+                          }
+                        }
+                      });
+                    }
+                  }
+                 });
+                 this.clearValue();
+                }
+              }
+              if (two[0].data.name == "Copy To..."){
+                rbs = jQuery(".x-item-selected .resourceBatchSelector");
+                var deleteThese = "";
+                for (rbsi=0; rbsi<rbs.size(); rbsi++){
+                  if (deleteThese.length > 0) deleteThese += ",";
+                  deleteThese += jQuery(rbs[rbsi]).attr("name");
+                }
+                //alert("Delete chosen:"+deleteThese);
+                Ext.Msg.prompt(
+                  'Copy Resources',
+                   "Where do you want to copy "+rbs.size()+" resources? DEV, requires si:####### will be changed to lookup like current 'Link to another Concept'. Currently doesn't make checks against it, will 'double associate' if you do it to the same one twice, and will try to add a resource as a resource of a resource, etc.",
+                  function(choice,text) {
+                    if (choice == 'ok'){
+                      jQuery.ajax({
+                        url: Drupal.settings.basePath+"viewer/"+text+"/associate/"+deleteThese,
+                        success: function(responseText){
+                          response = JSON.parse(responseText);
+                          if (!response.success){
+                            Ext.Msg.alert('Status','Problem removing resources:'+response);
+                          }else{
+                            Ext.Msg.alert('Status',"Success Response?"+response);
+                            ContentModelViewer.functions.selectConcept();
+                            ContentModelViewer.functions.refreshTreeParents(ContentModelViewer.properties.pids.concept);
+                          }
+                        },error: function(errorStuff){
+                          Ext.Msg.alert("Got a HTTP error, maybe the ID was incorrect?");
+                        }
+                      });
+                    }
+                  }
+                );
+                this.clearValue();
+              }
+            }
+          }
+        }, {
           xtype: 'button',
           text: 'Add a new Resource',
           handler: function (button, event) {
@@ -197,3 +340,17 @@ Ext.onReady(function () {
     }
   });
 });
+window.wasADeselect=false;
+window.wasASelect=false;
+function getSelected(){
+  rbs = jQuery(".x-item-selected .resourceBatchSelector");
+  var selectedPids = "";
+  for (rbsi=0; rbsi<rbs.size(); rbsi++){
+    var currName = jQuery(rbs[rbsi]).attr("name");
+    if (selectedPids.indexOf(currName) == -1){ //don't add twice
+      if (selectedPids.length > 0) selectedPids += ",";
+      selectedPids += currName; 
+    }
+  }
+  return selectedPids;
+}

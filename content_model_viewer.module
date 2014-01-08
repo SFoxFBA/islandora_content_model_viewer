@@ -733,6 +733,8 @@ function content_model_viewer_iframe($pid = NULL) {
   drupal_add_js($js_path . '/CollectionPanel.js');
   drupal_add_js($js_path . '/TreePanel.js');
   drupal_add_js($js_path . '/ContentModelViewer.js');
+  drupal_add_js($js_path . '/extjs_plugins/ux/DataView/DragSelector.js');
+  drupal_add_js($js_path . '/extjs_plugins/ux/DataView/Draggable.js');
   drupal_add_css($path . '/css/ContentModelViewer.css');
   //Going to be disabling this InitialDisplay via javascript, so don't aggregate it */
   drupal_add_css($path . '/css/ContentModelViewerInitialDisplay.css', 'module', 'all', FALSE);
@@ -1025,14 +1027,24 @@ function content_model_viewer_properties($pid) {
       exit();
   }
 }
-function content_model_viewer_move_object($source, $recipient, $related_pids_csv){
-  //echo "$source $recipient $related_pids_csv";
-  //exit();
+function content_model_viewer_move_object($sources, $recipient, $related_pids_csv){
   $_SESSION['messages'] = '';
-  //watchdog("BBBCMB","Complete Association");
-  $cmvaobl = content_model_viewer_associate_object_business_logic($recipient, $related_pids_csv);
-  $cmvuobl = content_model_viewer_unassociate_object_business_logic($source, $related_pids_csv);
-  $success = $cmvaobl['success'] && $cmvuobl['success']; 
+  if (strpos($sources,',') !== FALSE){
+    //In a multi-move, the URL will look something like this:
+    //...../viewer/source/si:src123,si:src456/dest/si:1234/move/si:tomove123,si:tomove456
+    //where si:src123 is the parent of si:tomove123 and si:src456 is the parent of si:tomove456
+    $sourcesArray = explode(',',$sources);
+    $toMoveArray = explode(',',$related_pids_csv);
+    for($i = 0; $i < count($sourcesArray); $i++){
+      $cmvaobl = content_model_viewer_associate_object_business_logic($recipient, $toMoveArray[$i]);
+      $cmvuobl = content_model_viewer_unassociate_object_business_logic($sourcesArray[$i], $toMoveArray[$i]);
+      $success = $cmvaobl['success'] && $cmvuobl['success']; 
+    }
+  }else{
+    $cmvaobl = content_model_viewer_associate_object_business_logic($recipient, $related_pids_csv);
+    $cmvuobl = content_model_viewer_unassociate_object_business_logic($sources, $related_pids_csv);
+    $success = $cmvaobl['success'] && $cmvuobl['success']; 
+  }
   $msgs = array();
   $toReturn = array('operation' => 'move', 'success' => $success, 'msg' => $msgs, 'suboperations' => array($cmvaobl,$cmvuobl)); 
   echo json_encode($toReturn);
@@ -1040,7 +1052,6 @@ function content_model_viewer_move_object($source, $recipient, $related_pids_csv
 }
 function content_model_viewer_associate_object($recipient, $related_pids_csv){
   $_SESSION['messages'] = '';
-  //watchdog("BBBCMB","Complete Association");
   $cmvaobl = content_model_viewer_associate_object_business_logic($recipient, $related_pids_csv);
   echo json_encode($cmvaobl);
   exit();
@@ -1051,24 +1062,18 @@ function content_model_viewer_associate_object_business_logic($recipient, $relat
   $related_pids = explode(',',$related_pids_csv);
   $msgs = array();
   $success = TRUE;
-  //watchdog("BBBCMV","starting associate object: $recipient, $related_pids_csv");
   $repo = tuque_wrapper_get_repository_instance();
   $description = $repo->api->a->describeRepository();
-  //watchdog("BBBCMB","Associating: $recipient, $related");
   
-  //watchdog("BBBCMB","repo obtain, desc: ".implode("|",$description)." --");
   $parent = $repo->getObject($recipient);
-  //watchdog("BBBCMB","parent: $parent");
   foreach ($related_pids as $index => $related) {
-    //Do something if there is an error
-    //watchdog("BBBCMB","Associating: $recipient, $related");
+    //Do something if there is an error? TBD TODO
     $currmsg = array();
     if (sidora_check_for_relationship($recipient, $related)) {
       $currmsg['success'] = FALSE;
       $currmsg['message'] = t('Relationship between @recipient and @related already exists', array('@recipient' => $recipient, '@related' => $related));
     }else{
       $child = $repo->getObject($related);
-      //watchdog("BBBCMB","child: $child");
       $currmsg = sidora_associate_business_logic($repo, $recipient, $related, FALSE);
     }
     $success = $success && $currmsg['success'];
@@ -1087,7 +1092,6 @@ function content_model_viewer_unassociate_object_business_logic($unassociate_fro
   $repo = tuque_wrapper_get_repository_instance();
   $description = $repo->api->a->describeRepository();
   $parent = $repo->getObject($unassociate_from);
-  //watchdog("BBBCMB","parent: $parent");
   foreach ($related_pids as $index => $related) {
     $currmsg = array();
     if (!sidora_check_for_relationship($unassociate_from, $related)) {
@@ -1095,7 +1099,6 @@ function content_model_viewer_unassociate_object_business_logic($unassociate_fro
       $currmsg['message'] = t('Relationship between @uaf and @related does not exist', array('@uaf' => $unassociate_from, '@related' => $related));
     }else{
       $child = $repo->getObject($related);
-      //watchdog("BBBCMB","child: $child");
       $currmsg = sidora_unassociate_business_logic($repo, $unassociate_from, $related, FALSE);
     }
     $success = $success && $currmsg['success'];
@@ -1116,7 +1119,7 @@ function content_model_viewer_purge_objects_business_logic($pids){
   $msgs = array();
   $success = TRUE;
   foreach ($pids as $index => $pid) {
-    //Do something if there is an error
+    //Do something if there is an error? TODO
     $currmsg = content_model_viewer_purge_object_choose_exit($pid,FALSE);
     $success = $success && $currmsg['success'];
     $msgs[] = $currmsg;
@@ -1242,10 +1245,6 @@ function content_model_viewer_purge_object_choose_exit($pid,$shouldEchoAndExit){
 function content_model_viewer_item_information($parent_pid, $child_pids_string, $batch_action = '') { 
   if ($batch_action == 'delete'){
     module_load_include('inc', 'fedora_repository', 'api/fedora_item');
-    //$item = new Fedora_Item($parent_pid);
-    //var_dump($item);
-    //$xml = $item->get_datastream_dissemination('DC');
-    //var_dump($xml);
     $child_pids = explode(",",$child_pids_string);
     $child_pids_purged = array();
     $child_pids_unassociated = array();
@@ -1318,23 +1317,16 @@ function content_model_viewer_wizard_step($pid, $type = 'concept') {
 }
 
 function content_model_viewer_add_object($pid, $type = 'concept') { // Ugly hacks!
-  //watchdog("BBB_content_viewer_module","cmv cmvao $pid, $type");
   $run_wizard_meta = ($_POST['uploaded_file_dsid'] == 'OBJ' && $_POST['wizard_check'] == TRUE);
   $form_name_test = $_POST['forms'];
-  //watchdog("BBB_content_viewer_module","form_name_test:$form_name_test");
-  //watchdog("BBB_content_viewer_module","general 1:". $_POST['uploaded_file_dsid'] . ' and:' . $_POST['wizard_check']);
   $cmodels = content_model_viewer_get_cmodels($pid);
   $id = $type == 'concept' ? 'add-concept-form' : 'add-resource-form';
   $action = $type == 'concept' ? 'ingest-concept' : 'ingest-resource';
-  //watchdog("BBB_content_viewer_module","cmv cmvao theme $id, $pid, $action");
   $data = theme('content_model_viewer_metadata_form', $id, $pid, $action);
-  //watchdog("BBB_content_viewer_module","theme complete");
   if ($run_wizard_meta){
     if (!empty($form_name_test)){
-      //watchdog("BBB_content_viewer_module","setting form type:".$form_name_test);//$_POST['forms']);
-      $_SESSION['content_model_form_name'] = $form_name_test;//_POST['forms'];
+      $_SESSION['content_model_form_name'] = $form_name_test;
     }
-    //watchdog("BBB_content_viewer_module","calling wizard-meta");
     $data = theme('content_model_viewer_metadata_form', $id, $pid, 'wizard-meta');
   }else{
     unset($_SESSION['pid_list']);
@@ -1362,7 +1354,6 @@ function content_model_viewer_add_object($pid, $type = 'concept') { // Ugly hack
       $css_files[] = base_path() . $path . $query_string;
     }
   }
-  //watchdog("BBB_content_viewer_module","cmv cmvao completed:".$data);
   header("Content-type: application/json");
   echo json_encode(array('success' => TRUE, 'data' => $data, 'func' => NULL, 'settings' => $settings, 'js' => $files, 'css' => $css_files, 'refresh' => $refresh));
   exit();
