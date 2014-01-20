@@ -42,6 +42,14 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
 
       beforedrop: {
         fn: function(node, data, overModel, dropPos, opts) {
+          //Get the current user selection so that it can be reapplied after the tree changes (which deselects)
+          var isDraggingResources = true;
+          var isDraggingConcepts = false;
+          var userSelectionStorage = Ext.getCmp('cmvtreepanel').getSelectionModel().getSelection();
+          var userSelectionStorageParent = null;
+          if (userSelectionStorage.length > 0){
+            userSelectionStorageParent = userSelectionStorage[0].parentNode;
+          }
           var dropPid = overModel.get('pid');
           var resourcePids = getSelected();
           var conceptPids = getTreeSelected();
@@ -52,6 +60,8 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
           var draggedTypeName = "resource(s)";
           var additionalMessage = "";
           if (resourcePids.indexOf(trueDraggedPid) == -1){
+             isDraggingConcepts = true;
+             isDraggingResources = false;
              dragPids = conceptPids;
              draggedTypeName = "concept(s)";
              parentPids = getTreeSelectedParents();
@@ -86,24 +96,33 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
             
           
           var dropLabel = overModel.get('text');
+          var dragLabels = "";
+          var dragPidThenLabelWithBr = "";
+          if (isDraggingConcepts){
+            dpArray = dragPids.split(",");
+            for (dpi = 0; dpi < dpArray.length; dpi++){
+              if (dragLabels != "") dragLabels += ",";
+              dragLabels += Ext.getCmp('cmvtreepanel').getNodesByPid(dpArray[dpi])[0].get('text');
+              if (dragPidThenLabelWithBr != "") dragPidThenLabelWithBr += "<br>";
+              dragPidThenLabelWithBr += dpArray[dpi] + ' - ' +Ext.getCmp('cmvtreepanel').getNodesByPid(dpArray[dpi])[0].get('text');
+            }
+          }
+          if (isDraggingResources){
+             dragPidThenLabelWithBr = getSelectedWithLabels(); 
+          }
           if (window.modifierKeysHeld.shift){
+            //var outputMessage =  additionalMessage + 'Are you sure you want to associate (copy) the selected '+draggedTypeName+':<br>'+dragPids+'<br> to <br>' + dropPid + ' - ' + dropLabel;
+            var outputMessage = additionalMessage + 'Are you sure you want to associate (copy) the selected '+draggedTypeName+':<br>'+dragPidThenLabelWithBr+ ' <br> to <br>' +  dropPid + ' - ' + dropLabel;
             Ext.Msg.show({
               title:'Copy '+draggedTypeName,
-              msg: additionalMessage + 'Are you sure you want to associate (copy) the selected '+draggedTypeName+' (' + dragPids  + ') to ' + dropLabel + '(' +  dropPid + ')',
+              msg: outputMessage,
               buttons: Ext.Msg.YESNO,
               fn: function(choice) {
                 if (choice == 'yes'){
                   jQuery.ajax({
                         url: Drupal.settings.basePath+"viewer/"+dropPid+"/associate/"+dragPids,
                         success: function(responseText){
-                          response = JSON.parse(responseText);
-                          if (!response.success){
-                            Ext.Msg.alert('Status','Problem removing resources:'+response);
-                          }else{
-                            //Ext.Msg.alert('Status',"Success Response?"+response);
-                            ContentModelViewer.functions.selectConcept();
-                            ContentModelViewer.functions.refreshTreeParents(ContentModelViewer.properties.pids.concept);
-                          }
+                          successfulHttpOnCopyOrMove(responseText, 'Copy', null, dragPids, dropPid, userSelectionStorageParent, userSelectionStorage);
                         },error: function(errorStuff){
                           Ext.Msg.alert("Got a HTTP error, maybe the ID was incorrect?");
                         }
@@ -112,23 +131,18 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
               }
             });
           }else{
+            //var outputMessage =  additionalMessage + 'Are you sure you want to move the selected '+draggedTypeName+':<br>'+dragPids+'<br> to <br>' + dropPid + ' - ' + dropLabel;
+            var outputMessage =  additionalMessage + 'Are you sure you want to move the selected '+draggedTypeName+':<br>'+dragPidThenLabelWithBr+ ' <br> to <br>' +  dropPid + ' - ' + dropLabel;
             Ext.Msg.show({
               title:'Move '+draggedTypeName,
-              msg: additionalMessage + 'Are you sure you want to move the selected '+draggedTypeName+' (' + dragPids  + ') to ' + dropLabel + '(' +  dropPid + ')',
+              msg: outputMessage, 
               buttons: Ext.Msg.YESNO,
               fn: function(choice) {
                 if (choice == 'yes'){
                   jQuery.ajax({
                         url: Drupal.settings.basePath+"viewer/source/"+parentPids+"/dest/"+dropPid+"/move/"+dragPids,
                         success: function(responseText){
-                          response = JSON.parse(responseText);
-                          if (!response.success){
-                            Ext.Msg.alert('Status','Problem removing resources:'+response);
-                          }else{
-                            //Ext.Msg.alert('Status',"Success Response?"+response);
-                            ContentModelViewer.functions.selectConcept();
-                            ContentModelViewer.functions.refreshTreeParents(ContentModelViewer.properties.pids.concept);
-                          }
+                          successfulHttpOnCopyOrMove(responseText, 'Move', parentPids, dragPids, dropPid, userSelectionStorageParent, userSelectionStorage);
                         },error: function(errorStuff){
                           Ext.Msg.alert("Got a HTTP error, maybe the ID was incorrect?");
                         }
@@ -138,6 +152,9 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
               }
             });
           }
+          //Set the selection:
+          Ext.getCmp('cmvtreepanel').getSelectionModel().select(userSelectionStorageParent);
+          Ext.getCmp('cmvtreepanel').getSelectionModel().select(userSelectionStorage);
           this.droppedRecords = data.records;  //Not currently used, if you wanted to relook at the record dropped
           data.records = [];
         }
@@ -230,6 +247,7 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
             node.set('leaf', false); // May have added a child.
             node.commit();
           }
+          treeRefreshed();
         }
       });
     }
@@ -276,6 +294,7 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
     },
     itemmousedown: {
       fn: function (view, record, item, index, event) {
+        //TODO: TBD: reselect what got unselected
         jQuery(item).attr("parentpid",record.parentNode.get('pid'));
         jQuery(item).attr("pid",record.get('pid')); //ExtJS became too cumbersome to try and get back and forth between tree node and data
         //Perhaps there is an easy way to get the data from the tree when only having the DOM object? I did not find it, assumed starting from
@@ -321,7 +340,63 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
     },
   }
 });
+function successfulHttpOnCopyOrMove(responseText, copyOrMoveText, parentPids, dragPids, dropPid, userSelectionStorageParent, userSelectionStorage){
+  response = JSON.parse(responseText);
+  if (!response.success){
+    responseAlert(copyOrMoveText+' problem',response);
+  }
 
+  ContentModelViewer.functions.selectConcept();
+  toUpdate = dragPids.split(",");
+  for (var tui = 0; tui < toUpdate.length; tui++){
+    ContentModelViewer.functions.refreshTreeParents(toUpdate[tui]);
+  }
+  if (parentPids != null){
+    toUpdate = parentPids.split(",");
+    for (var tui = 0; tui < toUpdate.length; tui++){
+      ContentModelViewer.functions.refreshTreeNodes(toUpdate[tui]);
+    }
+  }
+  ContentModelViewer.functions.refreshTreeNodes(dropPid);
+  if (typeof(window.refreshLatency) == 'undefined'){
+    window.refreshLatency = 2000;
+  }
+  
+  treeRefreshed = (function(){
+    
+    //If something is already selected validly in the tree, don't change it?
+    //if (Ext.getCmp('cmvtreepanel').getSelectionModel().getSelection().length > 0 && Ext.getCmp('cmvtreepanel').getSelectionModel().getSelection()[0].parentNode != null) return;
+ 
+    
+    //See if there is an item that has the pid and has the dropPid as a parent
+    possibleTargets = Ext.getCmp('cmvtreepanel').getNodesByPid(userSelectionStorage[0].get("pid"));
+    var finalTarget = null;
+    for (i = 0; i < possibleTargets.length; i++){
+      if (possibleTargets[i].parentNode.get("pid") == dropPid){
+        finalTarget = possibleTargets[i];
+      }
+    }
+    if (finalTarget != null && response.success){ //if the move/copy failed, don't select the one that is in the dragged pid (e.g. failed because it was already there)
+      Ext.getCmp('cmvtreepanel').getSelectionModel().select(finalTarget);
+    }else{
+      //if we couldn't find anything, do the initial parent and then the initial selection
+      Ext.getCmp('cmvtreepanel').getSelectionModel().select(userSelectionStorageParent);
+      //Dont try to select the thing that moved (it's gone) and leave it at the parent
+      if (userSelectionStorage.length > 0 && userSelectionStorage[0].parentNode != null){
+        Ext.getCmp('cmvtreepanel').getSelectionModel().select(userSelectionStorage);
+      }
+    }
+    if(Ext.getCmp('cmvtreepanel').getSelectionModel().getSelection().length == 0 || Ext.getCmp('cmvtreepanel').getSelectionModel().getSelection()[0].parentNode == null){ //check to see if there is a "selected" node
+      //If nothing else, at least select the thing that has the pid of the last selected item
+      Ext.getCmp('cmvtreepanel').getSelectionModel().select(Ext.getCmp('cmvtreepanel').getNodesByPid(Ext.getCmp('cmvtreepanel').getSelectionModel().getSelection()[0].get("pid")));
+    }
+    //If the item does appear anywhere in the current tree that "should" be selected, then select it
+    var nodesThatAreProper = Ext.getCmp('cmvtreepanel').getNodesByPid(ContentModelViewer.properties.pids.concept);
+    if (nodesThatAreProper.length > 0 && ContentModelViewer.properties.pids.concept !=  Ext.getCmp('cmvtreepanel').getSelectionModel().getSelection()[0].get("pid")){
+       Ext.getCmp('cmvtreepanel').getSelectionModel().select(nodesThatAreProper[0]);
+    }
+  });//,window.refreshLatency);
+}
 /*
 The first item returned in the array is the pid of the selected node that is shown in the right panel
 */
@@ -374,6 +449,33 @@ function getTreeSelected(returnAsArray, excludeWithParentPid, onlyIncludeWithPar
     return toReturn;
   }
   return toReturn.join(",");
+}
+function responseAlert(userReadableErrorType, response){
+  var fullMessage = "";
+  var msgs = getMessageArray(response.msg);
+  fullMessage += msgs.join("<br/>");
+  if (typeof(response.suboperations) != 'undefined'){
+    for (var csoi = 0; csoi < response.suboperations.length; csoi++){
+      if (response.suboperations[csoi] != null){
+        msgs = getMessageArray(response.suboperations[csoi].msg);
+        fullMessage += msgs.join("<br/>");
+      }
+    }
+  }
+  Ext.Msg.alert('Status',userReadableErrorType+': '+fullMessage);
+}
+function getMessageArray(msg){
+  var toReturn = [];
+  if (typeof(msg) != 'undefined' && msg != null && typeof(msg.length) == 'number'){
+    for (var mi = 0; mi < msg.length; mi++){
+      if (typeof(msg[mi].message) != 'undefined' && msg[mi].message != null){
+        toReturn.push(msg[mi].message);
+      }
+    }
+  }
+  return toReturn;
+}
+function treeRefreshed(){
 }
 window.modifierKeysHeld = new Object();
 window.modifierKeysHeld.shift = false;

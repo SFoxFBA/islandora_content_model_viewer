@@ -1029,6 +1029,8 @@ function content_model_viewer_properties($pid) {
 }
 function content_model_viewer_move_object($sources, $recipient, $related_pids_csv){
   $_SESSION['messages'] = '';
+  $suboperations = array();
+  $success = true;
   if (strpos($sources,',') !== FALSE){
     //In a multi-move, the URL will look something like this:
     //...../viewer/source/si:src123,si:src456/dest/si:1234/move/si:tomove123,si:tomove456
@@ -1037,16 +1039,27 @@ function content_model_viewer_move_object($sources, $recipient, $related_pids_cs
     $toMoveArray = explode(',',$related_pids_csv);
     for($i = 0; $i < count($sourcesArray); $i++){
       $cmvaobl = content_model_viewer_associate_object_business_logic($recipient, $toMoveArray[$i]);
-      $cmvuobl = content_model_viewer_unassociate_object_business_logic($sourcesArray[$i], $toMoveArray[$i]);
-      $success = $cmvaobl['success'] && $cmvuobl['success']; 
+      $suboperations[] = $cmvaobl;
+      $success = $success && $cmvaobl['success']; 
+      if ($cmvaobl['success']){
+        $cmvuobl = content_model_viewer_unassociate_object_business_logic($sourcesArray[$i], $toMoveArray[$i]);
+        $success = $success && $cmvuobl['success']; 
+        $suboperations[] = $cmvuobl;
+      }
     }
   }else{
     $cmvaobl = content_model_viewer_associate_object_business_logic($recipient, $related_pids_csv);
-    $cmvuobl = content_model_viewer_unassociate_object_business_logic($sources, $related_pids_csv);
-    $success = $cmvaobl['success'] && $cmvuobl['success']; 
+    $suboperations[] = $cmvaobl;
+    if ($cmvaobl['success']){
+      $cmvuobl = content_model_viewer_unassociate_object_business_logic($sources, $related_pids_csv);
+      $success = $cmvaobl['success'] && $cmvuobl['success']; 
+      $suboperations[] = $cmvuobl;
+    }else{
+      $success = false;
+    }
   }
   $msgs = array();
-  $toReturn = array('operation' => 'move', 'success' => $success, 'msg' => $msgs, 'suboperations' => array($cmvaobl,$cmvuobl)); 
+  $toReturn = array('operation' => 'move', 'success' => $success, 'msg' => $msgs, 'suboperations' => $suboperations); 
   echo json_encode($toReturn);
   exit();
 }
@@ -1079,7 +1092,7 @@ function content_model_viewer_associate_object_business_logic($recipient, $relat
     $success = $success && $currmsg['success'];
     $msgs[] = $currmsg;
   }
-  $toReturn = array('operation' => 'associate', 'success' => $success, 'msg' => $msgs); 
+  $toReturn = array('operation' => 'associate', 'success' => $success, 'msg' => $msgs, 'recipient' => $recipient, 'payload' => $related_pids_csv); 
   return $toReturn;
 }
 
@@ -1104,7 +1117,7 @@ function content_model_viewer_unassociate_object_business_logic($unassociate_fro
     $success = $success && $currmsg['success'];
     $msgs[] = $currmsg;
   }
-  $toReturn = array('operation' => 'unassociate', 'success' => $success, 'msg' => $msgs); 
+  $toReturn = array('operation' => 'unassociate', 'success' => $success, 'msg' => $msgs, 'recipient' => $unassociate_from, 'payload' => $related_pids_csv); 
   return $toReturn;
 }
 
@@ -1118,12 +1131,14 @@ function content_model_viewer_purge_objects_business_logic($pids){
   $toReturn = array();
   $msgs = array();
   $success = TRUE;
-  foreach ($pids as $index => $pid) {
-    //Do something if there is an error? TODO
-    $currmsg = content_model_viewer_purge_object_choose_exit($pid,FALSE);
-    $success = $success && $currmsg['success'];
-    $msgs[] = $currmsg;
-    
+  watchdog("BBB_content_viewer_module","cmvpobl pids: $pids");
+  if (!empty($pids)){
+    foreach ($pids as $index => $pid) {
+      //Do something if there is an error? TODO
+      $currmsg = content_model_viewer_purge_object_choose_exit($pid,FALSE);
+      $success = $success && $currmsg['success'];
+      $msgs[] = $currmsg;
+    }
   }
   $toReturn = array('success' => $success, 'msg' => $msgs);
   return $toReturn;
@@ -1655,51 +1670,48 @@ function content_model_viewer_edit_metadata_wizard_form(array &$form_state, $pid
     $current_pid = $pid = $pulled_pid;
   }//$pid = 'si:256421';//'si:256425'; //BBB REMOVE
   if (!empty($current_pid)){
-	  //$old_form_state = array();
-	  //$old_form = form_get_cache($_POST['form_build_id'], $old_form_state);
-	  //var_dump($form_state);
-	  $content_model_form_name = $_SESSION['content_model_form_name'];
-	  //$_SESSION['content_model_form_name'] = '';
-	  $_SESSION['current_pid'] = '';
-	  if (empty($content_model_form_name)){
-            watchdog("BBB_content_viewer_module","content_model_form_name was blank!!");
-            $content_model_form_name = 'General Image Description'; //BBB REMOVE
-          }
-	  $form_state['storage']['step'] = '2';
-	  $form_state['storage']['xml'] = true;
-	  $form_state['submitted'] = true;
-	  $form_state['values']['form_id'] = 'content_model_viewer_edit_metadata_form';
-	  $form_state['values']['op'] = 'Next';
-	  $form_state['values']['submit'] = 'Next';
-	  $form_state['values']['which_action'] = 'Edit';
-	  $form_state['values']['forms'] = $content_model_form_name; 
-	  $form_state['post'] = array();
-	  $form_state['post']['which_action'] = 'edit';
-	  $form_state['#submit'][] = 'content_model_viewer_edit_metadata_wizard_form_submit';
+    $content_model_form_name = $_SESSION['content_model_form_name'];
+    $_SESSION['current_pid'] = '';
+    if (empty($content_model_form_name)){
+      watchdog("BBB_content_viewer_module","content_model_form_name was blank!!");
+      $content_model_form_name = 'General Image Description'; //BBB REMOVE
+    }
+    $form_state['storage']['step'] = '2';
+    $form_state['storage']['xml'] = true;
+    $form_state['submitted'] = true;
+    $form_state['values']['form_id'] = 'content_model_viewer_edit_metadata_form';
+    $form_state['values']['op'] = 'Next';
+    $form_state['values']['submit'] = 'Next';
+    $form_state['values']['which_action'] = 'Edit';
+    $form_state['values']['forms'] = $content_model_form_name; 
+    $form_state['post'] = array();
+    $form_state['post']['which_action'] = 'edit';
+    $form_state['#submit'][] = 'content_model_viewer_edit_metadata_wizard_form_submit';
+ 
+    $connection_helper = new ConnectionHelper();
+    $client = $connection_helper->getSoapClient(variable_get('fedora_soap_url', 'http://localhost:8080/fedora/services/access?wsdl'));
+    try {
+      $edit_form = new EditObjectMetadataForm();
+      //var_dump($form_state);
+      $output = $edit_form->create($pid, $client, $form_state);
 
-	  $connection_helper = new ConnectionHelper();
-	  $client = $connection_helper->getSoapClient(variable_get('fedora_soap_url', 'http://localhost:8080/fedora/services/access?wsdl'));
-	  try {
-	    $edit_form = new EditObjectMetadataForm();
-	    //var_dump($form_state);
-	    $output = $edit_form->create($pid, $client, $form_state);
-	    $output['which_action'] = array(
-	      '#type' => 'hidden',
-	      '#value' => 'edit'
-	    );
-	    $output['wiz_next'] = array(
-              '#type' => 'hidden',
-              '#value' => $_SESSION['pid_list'][0],
-            );
-	    $output['#action'] = '/viewer/'.$pid.'/metadata_form';//BBB
-	    //var_dump($output);
-	    unset($_SESSION['messages']); // Don't display drupal messages to the user for this interface.
-            watchdog("BBB_content_viewer_module","next wizard form complete");
-	  } catch (Exception $e) {
-	    $msg = "File: {$e->getFile()}<br/>Line: {$e->getLine()}<br/>Error: {$e->getMessage()}";
-	    drupal_set_message($msg, 'error');
-	    return array();
-	  }
+      $output['which_action'] = array(
+        '#type' => 'hidden',
+        '#value' => 'edit'
+      );
+      $output['wiz_next'] = array(
+        '#type' => 'hidden',
+        '#value' => $_SESSION['pid_list'][0],
+      );
+      $output['#action'] = '/viewer/'.$pid.'/metadata_form';
+      //var_dump($output);
+      unset($_SESSION['messages']); // Don't display drupal messages to the user for this interface.
+      watchdog("BBB_content_viewer_module","next wizard form complete");
+    } catch (Exception $e) {
+      $msg = "File: {$e->getFile()}<br/>Line: {$e->getLine()}<br/>Error: {$e->getMessage()}";
+      drupal_set_message($msg, 'error');
+      return array();
+    }
   }
   watchdog("BBB_content_viewer_module","f_st wizard_finish:".$form_state['values']['wizard_finish'].'--');
   watchdog("BBB_content_viewer_module","POST wizard_finish:".$_POST['wizard_finish'].'--');
@@ -1724,6 +1736,14 @@ function content_model_viewer_edit_metadata_wizard_form_submit(array &$form, arr
   try {
     $edit_form = new EditObjectMetadataForm();
     $edit_form->submit($form, $form_state);
+    $pid = $form_state['values']['pid'];
+    if (empty($_SESSION['initial_upload'])){
+      //this edit form s used to batch create the metadata, and do editing we don't want to initially mark the metadata as edited
+      watchdog("BBB_content_viewer_module","set metadata complete:".$pid);
+      sidora_mark_as_metadata_complete($pid);
+    }else{
+      watchdog("BBB_content_viewer_module","NOT set metadata complete:".$pid);
+    }
   } catch (Exception $e) {
     $msg = "File: {$e->getFile()}<br/>Line: {$e->getLine()}<br/>Error: {$e->getMessage()}";
     drupal_set_message($msg, 'error');
@@ -1735,7 +1755,7 @@ function content_model_viewer_edit_metadata_wizard_form_submit(array &$form, arr
     $_SESSION['content_model_viewer_refresh_tree'] = $form_state['values']['pid'];
   }else{
     watchdog("BBB_content_viewer_module","next_pid is not empty");
-    $form_state['redirect'] = "viewer/{$form_state['values']['pid']}/wizard_step/".$_SESSION['next_pid'];//'';//"viewer/".$_SESSION['next_pid']."/metadata_form";
+    $form_state['redirect'] = "viewer/{$form_state['values']['pid']}/wizard_step/".$_SESSION['next_pid'];
   }
   unset($_SESSION['messages']); // Don't display drupal messages to the user for this interface.
 }

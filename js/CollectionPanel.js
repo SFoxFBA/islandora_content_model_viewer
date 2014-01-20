@@ -342,6 +342,19 @@ Ext.onReady(function () {
 });
 window.wasADeselect=false;
 window.wasASelect=false;
+function getSelectedWithLabels(){
+  rbs = jQuery(".x-item-selected .resourceBatchSelector");
+  var selectedPids = "";
+  for (rbsi=0; rbsi<rbs.size(); rbsi++){
+    var currPid = jQuery(rbs[rbsi]).attr("name");
+    var currText = jQuery(rbs[rbsi]).parent().children(".member-item-label").text();
+    if (selectedPids.indexOf(currPid) == -1){ //don't add twice
+      if (selectedPids.length > 0) selectedPids += "<br>";
+      selectedPids += currPid + " - " + currText; 
+    }
+  }
+  return selectedPids;
+}
 function getSelected(){
   rbs = jQuery(".x-item-selected .resourceBatchSelector");
   var selectedPids = "";
