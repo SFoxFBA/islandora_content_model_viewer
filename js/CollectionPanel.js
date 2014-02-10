@@ -321,6 +321,7 @@ Ext.onReady(function () {
           xtype: 'button',
           text: 'Add a new Resource',
           handler: function (button, event) {
+            window.tabularDataCodebookStep = "_ANR";
             ContentModelViewer.functions.loadAddResourceForm();
           }
         }],

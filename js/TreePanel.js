@@ -268,6 +268,7 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
   listeners: {
     itemmouseup: {
       fn: function (view, record, item, index, event) {
+        updateDragIndicatorText();
         if (!window.modifierKeysHeld.ctrl){
           //Would like to remove sidoraTreeMultiSelect from all, but this gets fired before
           //the drop item, so if you remove the class here then drop item won't get it.
@@ -290,11 +291,13 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
             ContentModelViewer.functions.selectConcept(pid);
           }
         }
+        updateDragIndicatorText();
       }
     },
     itemmousedown: {
       fn: function (view, record, item, index, event) {
         //TODO: TBD: reselect what got unselected
+        jQuery(".x-dd-drop-icon").addClass("sidoraDDIcon");
         jQuery(item).attr("parentpid",record.parentNode.get('pid'));
         jQuery(item).attr("pid",record.get('pid')); //ExtJS became too cumbersome to try and get back and forth between tree node and data
         //Perhaps there is an easy way to get the data from the tree when only having the DOM object? I did not find it, assumed starting from
@@ -308,6 +311,7 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
         //so for ease of use, decided to store the pid in the DOM as attribute
         if (window.modifierKeysHeld.ctrl){
           jQuery(item).toggleClass("sidoraTreeMultiSelect");
+          updateDragIndicatorText();
           return false;
         }else{
           //if looking to drag a selected item, don't deselect stuff
@@ -326,6 +330,7 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
             }
             if (resetMultiSelect) jQuery(".sidoraTreeMultiSelect").removeClass("sidoraTreeMultiSelect");
           }
+          updateDragIndicatorText();
         }
           var pid = record.get('pid');
           if (record.data.id === 'root') {
@@ -397,13 +402,41 @@ function successfulHttpOnCopyOrMove(responseText, copyOrMoveText, parentPids, dr
     }
   });//,window.refreshLatency);
 }
+
 /*
-The first item returned in the array is the pid of the selected node that is shown in the right panel
+* Updates the text on the drag item when moving within the Tree
 */
+function updateDragIndicatorText(){
+  setTimeout(function(){
+  var tsn = getTreeSelected(true,null,null);
+  if (jQuery("#sidoraDragText").length == 0){
+    jQuery("#cmvtreepanel-body-drag-status-proxy-ghost").before("<div id='sidoraDragText' class='sidora-dd-drag-ghost'>sidoraDragText</div>");
+  }
+  jQuery("#sidoraDragText").text(tsn.length+" selected ");
+  },200);
+}
+
+
+/*
+* This will tell us whether to include the "true" selected pid in the returns from getTreeSelectedParents and getTreeSelected
+* the "true" selected pid is the one that extjs thinks is selected
+*/
+function isTrueSelectedPartOfSidoraTreeMultiSelect(){
+  var trueSelectedParentPid = Ext.getCmp('cmvtreepanel').view.getSelectedNodes()[0].getAttribute("parentpid");
+  var trueSelectedPid = Ext.getCmp('cmvtreepanel').view.getSelectedNodes()[0].getAttribute("pid");
+  var additionalSelected = jQuery(".sidoraTreeMultiSelect");
+  for(var i = 0; i < additionalSelected.length; i++){
+    var selectedPid = jQuery(additionalSelected[i]).attr("pid");
+    var selectedParentPid = jQuery(additionalSelected[i]).attr("parentpid");
+    if (selectedPid == trueSelectedPid && selectedParentPid == trueSelectedParentPid) return true;
+  }
+  return false;
+}
 function getTreeSelectedParents(returnAsArray, excludePid){
   var toReturn = [];
+  if (Ext.getCmp('cmvtreepanel').view.getSelectedNodes().length == 0) return toReturn; //No initial selection has been made
   var trueSelectedParentPid = Ext.getCmp('cmvtreepanel').view.getSelectedNodes()[0].getAttribute("parentpid");
-  if (trueSelectedParentPid != excludePid) toReturn.push(trueSelectedParentPid);
+  if (trueSelectedParentPid != excludePid && !isTrueSelectedPartOfSidoraTreeMultiSelect()) toReturn.push(trueSelectedParentPid);
   var additionalSelected = jQuery(".sidoraTreeMultiSelect");
   for(var i = 0; i < additionalSelected.length; i++){
     var selectedParentPid = jQuery(additionalSelected[i]).attr("parentpid");
@@ -414,12 +447,17 @@ function getTreeSelectedParents(returnAsArray, excludePid){
   }
   return toReturn.join(",");
 }
+/*
+* The first item returned in the array is the pid of the selected node that is shown in the right panel
+*
+*/
 function getTreeSelected(returnAsArray, excludeWithParentPid, onlyIncludeWithParentPid){
   var toReturn = [];
+  if (Ext.getCmp('cmvtreepanel').view.getSelectedNodes().length == 0) return toReturn; //No initial selection has been made
   var trueSelectedPid = Ext.getCmp('cmvtreepanel').view.getSelectedNodes()[0].getAttribute("pid");
   var trueSelectedParentPid = Ext.getCmp('cmvtreepanel').view.getSelectedNodes()[0].getAttribute("parentpid");
-  if (trueSelectedParentPid == excludeWithParentPid){
-    //Don't include it, specifically excluded
+  if (trueSelectedParentPid == excludeWithParentPid || isTrueSelectedPartOfSidoraTreeMultiSelect()){
+    //Don't include it, specifically excluded or dealt with in the sidoraTreeMultiSelect loop
   }else{
      if (typeof(onlyIncludeWithParentPid) == 'undefined' || onlyIncludeWithParentPid == null){
       //Include it, not excluded and there's no specific parent to worry about

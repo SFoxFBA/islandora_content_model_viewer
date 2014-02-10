@@ -877,12 +877,15 @@ function content_model_viewer_form_islandora_xacml_editor_page_submit($form, &$f
  * Show the metadata form.
  */
 function content_model_viewer_metadata_form($pid, $action = 'edit') {
+  ob_start();
+  var_dump($_POST);
+  $result = ob_get_clean();
+  watchdog("BBB_content_viewer_module","POST:".$result);
   // If concept
   $cmodels = content_model_viewer_get_cmodels($pid);
   $id = in_array('islandora:collectionCModel', $cmodels) ? 'concept-metadata-form' : 'resource-metadata-form';
   $wizard_finish = $_POST['wizard_finish'];
   $_SESSION['wizard_finish'] = $wizard_finish;
-
   if ($_POST['wizard_check'] == TRUE && $_POST['form_id'] == 'content_model_viewer_edit_metadata_wizard_form'){
     $data = theme('content_model_viewer_metadata_form', $id, $pid, 'wizard-meta');
   }else{
@@ -1038,24 +1041,39 @@ function content_model_viewer_move_object($sources, $recipient, $related_pids_cs
     $sourcesArray = explode(',',$sources);
     $toMoveArray = explode(',',$related_pids_csv);
     for($i = 0; $i < count($sourcesArray); $i++){
-      $cmvaobl = content_model_viewer_associate_object_business_logic($recipient, $toMoveArray[$i]);
-      $suboperations[] = $cmvaobl;
-      $success = $success && $cmvaobl['success']; 
-      if ($cmvaobl['success']){
-        $cmvuobl = content_model_viewer_unassociate_object_business_logic($sourcesArray[$i], $toMoveArray[$i]);
-        $success = $success && $cmvuobl['success']; 
-        $suboperations[] = $cmvuobl;
+      //ignore anything that is moved to itself (only do things where dest is not current parent
+      if ($recipient != $sourcesArray[$i]){
+        $cmvaobl = content_model_viewer_associate_object_business_logic($recipient, $toMoveArray[$i]);
+        $suboperations[] = $cmvaobl;
+        //$success = $success && $cmvaobl['success']; //See text below, failure still considered success
+        //The new associate can be unseccussful if the recipient already exists there, but on Jan 22 / Jan 24, 2014
+        //Janet sent emails indicating it should still be removed from other parent
+        //TODO: only remove it under the above circumstances instead of always doing it
+        if (true){//($cmvaobl['success']){
+          $cmvuobl = content_model_viewer_unassociate_object_business_logic($sourcesArray[$i], $toMoveArray[$i]);
+          $success = $success && $cmvuobl['success']; 
+          $suboperations[] = $cmvuobl;
+        }
+      }else{
+          $suboperations[] =  array('operation' => 'move', 'success' => true, 'msg' => 'No move needed, source parent and target parent identical', 'recipient' => $recipient, 'payload' => $toMoveArray[$i]); 
       }
     }
   }else{
-    $cmvaobl = content_model_viewer_associate_object_business_logic($recipient, $related_pids_csv);
-    $suboperations[] = $cmvaobl;
-    if ($cmvaobl['success']){
-      $cmvuobl = content_model_viewer_unassociate_object_business_logic($sources, $related_pids_csv);
-      $success = $cmvaobl['success'] && $cmvuobl['success']; 
-      $suboperations[] = $cmvuobl;
+    if ($recipient == $sources){
+      $suboperations[] =  array('operation' => 'move', 'success' => true, 'msg' => 'No move needed, source parent and target parent identical', 'recipient' => $recipient, 'payload' => $toMoveArray[$i]); 
     }else{
-      $success = false;
+      $cmvaobl = content_model_viewer_associate_object_business_logic($recipient, $related_pids_csv);
+      $suboperations[] = $cmvaobl;
+      //The new associate can be unseccussful if the recipient already exists there, but on Jan 22 / Jan 24, 2014
+      //Janet sent emails indicating it should still be removed from other parent
+      //TODO: only remove it under the above circumstances instead of always doing it
+      if (true){//($cmvaobl['success']){
+        $cmvuobl = content_model_viewer_unassociate_object_business_logic($sources, $related_pids_csv);
+        $success = /*$cmvaobl['success'] &&*/ $cmvuobl['success']; 
+        $suboperations[] = $cmvuobl;
+      }else{
+        $success = false;
+      }
     }
   }
   $msgs = array();
@@ -1310,7 +1328,26 @@ function content_model_viewer_item_information($parent_pid, $child_pids_string, 
   }
   exit();
 }
+function content_model_viewer_wizard_codebook_lookup(array &$form){
+  return array(
+    // The object that will be related to. Default isn't set via the form state
+    // as we want the field to be empty if it fails validation.
+    'related' => array(
+      '#id' => 'codebook-id',
+      '#type' => 'textfield',
+      '#title' => t('Use Existing Tabular Data Codebook'),
+      '#autocomplete_path' => MENU_CALLBACK_SIDORA_CODEBOOKS,
+      '#element_validate' => array('sidora_associate_validate_non_circular'),
+      '#description' => t('Type a codebook name to associate with the tabular dataset'),
+    ),
+  );
+
+}
 function content_model_viewer_wizard_step($pid, $type = 'concept') { 
+  if ($pid == 'codebook'){
+    echo drupal_get_form('content_model_viewer_wizard_codebook_lookup');
+    exit();
+  }
   if ($type == 'wizard_purge'){
     $to_delete = $_SESSION['orig_pid_list'];
     unset($_SESSION['orig_pid_list']);
@@ -1332,6 +1369,11 @@ function content_model_viewer_wizard_step($pid, $type = 'concept') {
 }
 
 function content_model_viewer_add_object($pid, $type = 'concept') { // Ugly hacks!
+  $postedCodebookId = $_POST['metadata_form_codebook_id']; //I hate this code, can't wait to rewrite in proper submit - RJA 2014-01-30
+  if (!empty($postedCodebookId)){
+    $_SESSION['codebook_id_for_ingest'] = $postedCodebookId;
+    watchdog("BBB_content_viewer_module","added codebook-id to session:".$_SESSION['codebook_id_for_ingest'].'---');
+  }
   $run_wizard_meta = ($_POST['uploaded_file_dsid'] == 'OBJ' && $_POST['wizard_check'] == TRUE);
   $form_name_test = $_POST['forms'];
   $cmodels = content_model_viewer_get_cmodels($pid);
@@ -1956,4 +1998,18 @@ function content_model_viewer_ingest_metadata_form_submit(array &$form, array &$
   }
   $form_state['redirect'] = "viewer/{$form_state['values']['pid']}/overview";
   unset($_SESSION['messages']); // Don't display drupal messages to the user for this interface.
+}
+/*
+BBB TODO REMOVE?
+*/
+class debugUtils {
+    public static function callStack($stacktrace) {
+        print str_repeat("=", 50) ."\n";
+        $i = 1;
+        foreach($stacktrace as $node) {
+            print "<br>";
+            print "$i. ".basename($node['file']) .":" .$node['function'] ."(" .$node['line'].")\n";
+            $i++;
+        }
+    } 
 }
