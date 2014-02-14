@@ -412,8 +412,9 @@ function updateDragIndicatorText(){
   if (jQuery("#sidoraDragText").length == 0){
     jQuery("#cmvtreepanel-body-drag-status-proxy-ghost").before("<div id='sidoraDragText' class='sidora-dd-drag-ghost'>sidoraDragText</div>");
   }
-  jQuery("#sidoraDragText").text(tsn.length+" selected ");
-  },200);
+  jQuery("#sidoraDragText").text(tsn.length+" items selected ");
+  if (tsn.length == 1) jQuery("#sidoraDragText").text("1 item selected ");
+},200);
 }
 
 

@@ -1344,6 +1344,13 @@ function content_model_viewer_wizard_codebook_lookup(array &$form){
 
 }
 function content_model_viewer_wizard_step($pid, $type = 'concept') { 
+  if ($type == 'test'){
+    $fs = array();
+    $mf = xml_form_builder_get_form($fs, "Research Project", NULL);
+    var_dump($mf);
+    print 'booya';
+    exit();
+  }
   if ($pid == 'codebook'){
     echo drupal_get_form('content_model_viewer_wizard_codebook_lookup');
     exit();

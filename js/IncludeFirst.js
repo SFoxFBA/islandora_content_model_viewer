@@ -609,3 +609,22 @@ Ext.onReady(function () {
   setup.defineModels();
   setup.createStores();
 });
+
+/**
+ * Add in prototypes which weren't on Beth's browser, Chrome v32????  Should've been there. Reason missing unknown.
+ */
+if (typeof String.prototype.startsWith != 'function') {
+    String.prototype.startsWith = function(prefix) {
+        return this.slice(0, prefix.length) == prefix;
+    };
+}
+ 
+if (typeof String.prototype.endsWith != 'function') {
+    String.prototype.endsWith = function(suffix) {
+        return this.slice(-suffix.length) == suffix;
+    };
+}
+if (typeof String.prototype.contains != 'function') {
+  String.prototype.contains = function(it) { return this.indexOf(it) != -1; };
+}
+

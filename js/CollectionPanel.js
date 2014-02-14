@@ -273,6 +273,7 @@ Ext.onReady(function () {
                             Ext.Msg.alert('Status',response.purged.length+" Resource(s) deleted and "+response.unassociated.length+" Resource(s) un-associated from the current object.");
                             ContentModelViewer.functions.selectConcept();
                             ContentModelViewer.functions.refreshTreeParents(ContentModelViewer.properties.pids.concept);
+                            jQuery("button:contains('Resources')").click();
                           }
                         }
                       });
