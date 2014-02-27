@@ -342,7 +342,7 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
           }
           ContentModelViewer.functions.selectConcept(pid);
       }
-    },
+    }
   }
 });
 function successfulHttpOnCopyOrMove(responseText, copyOrMoveText, parentPids, dragPids, dropPid, userSelectionStorageParent, userSelectionStorage){

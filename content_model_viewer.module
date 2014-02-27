@@ -1344,11 +1344,80 @@ function content_model_viewer_wizard_codebook_lookup(array &$form){
 
 }
 function content_model_viewer_wizard_step($pid, $type = 'concept') { 
+/*
+Decide what is the easiest thing to do...
+
+Hard code each set of dsid by type:
+Image: MODS
+Tabular: FGDC
+PDF: MODS
+
+Yes, this is easiest.  So, if it's a Tabular look up FGDC, else look up MODS
+
+Image:
+  is Camera Trap if:
+    relatedItem identifier
+    originInfo dateOther
+  is General if:
+    genre
+    note
+
+
+PDF:
+  is Digitized Text if:
+    genre
+    originInfo dateIssued
+    physicalDescription extent
+  is Field Book if:
+    location shelfLocator
+
+what's the plan?
+set window.sequentialBatchMetadata = false; when opening the resources tab.
+
+Open the Resource Overview tab if it's not open
+    Check via:
+    if (jQuery("button:contains('Resource Overview')").length == 0) {
+      ContentModelViewer.functions.selectResource("si:257367");  //Fill with proper ID
+      //Auto-swaps to tab
+    }else{
+      //Swap to the resource overview tab:
+      jQuery("button:contains('Resource Overview')").click();
+    }
+Indicate we're going to be doing a batch with something like window.sequentialBatchMetadata = true;
+For each resource:
+  Get the MODS data and the FGDC data
+  If it's MODS data, figure out which type
+  Load the metadata form for the resource
+  Choose the right form type on the form
+  Auto-submit the first form
+  Change the Submit button to either "next" or "finish"
+  On cancel, window.se.....data = false;
+  On resource overview, when loaded, initiate next resource
+
+What does this look like in code?
+
+Start the first "edit metadata" section
+Once user completes the first "edit meta" section, start a new one
+  So here we have to determine when we can get a hook to knowing the first meta section is complete
+  We can hook into the resource overview refresh, which will run the drupal behaviors
+  So have a behavior to look into if we are currently running a batch metadata"
+
+*/
   if ($type == 'test'){
     $fs = array();
     $mf = xml_form_builder_get_form($fs, "Research Project", NULL);
+    
     var_dump($mf);
     print 'booya';
+  module_load_include('inc', 'fedora_repository', 'api/fedora_item');
+      $item = new Fedora_Item("si:257368");//$pid);
+      $keys = array_keys($item->datastreams);
+    var_dump($keys);
+   $content_model_pid = 'si:fieldbookCModel';
+   // $content_model_pid = ContentModel::getPidFromIdentifier($identifier);
+   $form_names = islandora_content_model_get_form_names($content_model_pid);
+   var_dump($form_names);
+     // $item->datastreams[$dsid];
     exit();
   }
   if ($pid == 'codebook'){

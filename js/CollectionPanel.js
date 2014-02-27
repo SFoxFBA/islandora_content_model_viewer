@@ -234,7 +234,8 @@ Ext.onReady(function () {
             }),
             data: [
               {"name":"Delete"},
-              {"name":"Copy To..."}
+              //{"name":"Copy To..."}
+              {"name":"Edit Metadata..."}
             ]
           }),
           displayField: 'name',
@@ -282,6 +283,27 @@ Ext.onReady(function () {
                  });
                  this.clearValue();
                 }
+              }
+              if (two[0].data.name == "Edit Metadata..."){
+                rbs = jQuery(".x-item-selected .resourceBatchSelector");
+                if (rbs.size() == 0){
+                  //Error message?
+                }else{
+                  if (jQuery("button:contains('Resource Overview')").length == 0) {
+                    ContentModelViewer.functions.selectResource(jQuery(rbs[0]).attr('name'));//"si:257367");  //Fill with proper ID
+                    //Auto-swaps to tab, images then go to viewer...why?
+                  }else{
+                    //Swap to the resource overview tab:
+                    jQuery("button:contains('Resource Overview')").click();
+                  }
+                  window.bm = new BatchMetadata();
+                  for (rbsi=0; rbsi<rbs.size(); rbsi++){
+                    var fedoraId = jQuery(rbs[rbsi]).attr('name');
+                    window.bm.fedoraIds.push(fedoraId);
+                  }
+                  window.bm.displayNext();
+                }
+                this.clearValue();
               }
               if (two[0].data.name == "Copy To..."){
                 rbs = jQuery(".x-item-selected .resourceBatchSelector");
@@ -368,4 +390,71 @@ function getSelected(){
     }
   }
   return selectedPids;
+}
+
+
+function BatchMetadata(){
+  this.isRunning = false
+  this.fedoraIds = [];
+  this.nextIndex = 0;
+  this.isStarted = false;
+  this.isCompleted = function(){ return (nextIndex > fedoraIds.length); }
+  this.displayNext = function(){
+    var currId = this.fedoraIds[this.nextIndex]; 
+    Ext.getCmp('cmvtabpanel').getComponent('resource-overview').loadContent(
+      Drupal.settings.basePath+"viewer/"+currId+"/metadata_form"
+      ,null //Params
+      ,function (loader, response, options) {
+        if (typeof response.responseText !== 'undefined') {
+          data = JSON.parse(response.responseText);
+          if (data.refresh) {
+            cmv.refreshResource();
+            cmv.refreshResources();
+            cmv.refreshTreeNodes(ContentModelViewer.properties.pids.concept); // Update the object we were previously on
+          }
+          //this information will spell out if we need to get the MODS or if we need to get the FGDC data
+          var modsOrFgdc = "MODS";
+          if (data.data.indexOf("(MODS)") < 0){ modsOrFgdc = "FGDC"; }
+          jQuery.ajax({
+            url: Drupal.settings.basePath+"viewer/"+currId+"/"+modsOrFgdc+"/view",
+            success: function(responseText){
+              var typeToGet = "unknown";
+              if (responseText.indexOf("&lt;/relatedItem&gt;") > 1){
+                typeToGet = "Camera Trap Image: (MODS)";
+              }
+              if (responseText.indexOf("&lt;/note&gt;") > 1
+                 || responseText.indexOf("&lt;note/&gt;") > 1){
+                typeToGet = "General Image Description: (MODS)";
+              }
+              if (responseText.indexOf("&lt;/extent&gt;") > 1){
+                typeToGet = "Digitized Text";
+              }
+              if (responseText.indexOf("&lt;/shelfLocator&gt;") > 1){
+                typeToGet = "Field Book";
+              }
+              if (modsOrFgdc == "FGDC"){
+                typeToGet = "Tabular";
+              }
+              Ext.Msg.alert('Status','typeToGet:'+typeToGet);
+              jQuery("#edit-forms").val(typeToGet);
+              ContentModelViewer.functions.loadResourceEditMetadataForm(); 
+                          /*
+                          response = JSON.parse(responseText);
+                          if (!response.success){
+                            Ext.Msg.alert('Status','Problem removing resources:'+response);
+                          }else{
+                            Ext.Msg.alert('Status',"Success Response?"+response);
+                            //ContentModelViewer.functions.selectConcept();
+                            //ContentModelViewer.functions.refreshTreeParents(ContentModelViewer.properties.pids.concept);
+                          }
+            */
+            },error: function(errorStuff){
+              Ext.Msg.alert("Got a HTTP error, maybe the ID was incorrect?");
+            }
+          });
+        }
+      }
+    ); 
+    this.nextIndex++;
+  }
 }
