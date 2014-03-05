@@ -37,6 +37,7 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
       itemmousedown: {
         fn: function (view, record, item, index, event) {
           jQuery(".x-dd-drop-icon").addClass("sidoraDDIcon");
+          window.bm = null; //reset the batch metadata process (user cancelled out of it, essentially)
         }
       },
 
@@ -455,6 +456,7 @@ function getTreeSelectedParents(returnAsArray, excludePid){
 function getTreeSelected(returnAsArray, excludeWithParentPid, onlyIncludeWithParentPid){
   var toReturn = [];
   if (Ext.getCmp('cmvtreepanel').view.getSelectedNodes().length == 0) return toReturn; //No initial selection has been made
+  if (Ext.getCmp('cmvtreepanel').view.getSelectedNodes()[0] == null) return toReturn; //Don't know how this happens, Beth got this
   var trueSelectedPid = Ext.getCmp('cmvtreepanel').view.getSelectedNodes()[0].getAttribute("pid");
   var trueSelectedParentPid = Ext.getCmp('cmvtreepanel').view.getSelectedNodes()[0].getAttribute("parentpid");
   if (trueSelectedParentPid == excludeWithParentPid || isTrueSelectedPartOfSidoraTreeMultiSelect()){

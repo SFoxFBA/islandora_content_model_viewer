@@ -639,9 +639,14 @@ function content_model_viewer($pid = NULL) {
     return '';
   }
   if ($pid !== NULL) {
-    $item = new fedora_item($pid);
-    if (!$item->exists()) {
-      $pid = NULL;
+    if (strpos($pid,':') === false){
+      watchdog("BBB_content_viewer_module","Tried to get info for bad pid:".$pid."---");
+      $pid = NULL; 
+    }else{
+      $item = new fedora_item($pid);
+      if (!$item->exists()) {
+        $pid = NULL;
+      }
     }
   }
   return theme('content_model_viewer', $pid);

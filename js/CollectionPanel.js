@@ -398,20 +398,69 @@ function BatchMetadata(){
   this.fedoraIds = [];
   this.nextIndex = 0;
   this.isStarted = false;
-  this.isCompleted = function(){ return (nextIndex > fedoraIds.length); }
+  this.readyToDisplayNext = true;
+  this.isDisplayingFinal = false;  //If it's complete, but the final metadata is still showing on the screen
+  this.isCompleted = function(){ return (this.nextIndex >= this.fedoraIds.length); }
+  this.repurposeEditMetadataScreen = function(){
+    if (!this.isRunning && !this.isDisplayingFinal){
+      return; //shouldn't be repurposing if the batch metadata isn't running
+    }
+    var theBmDriver = this;
+    if (jQuery('.form-submit:[value="Cancel"]').length > 0){  //Confirms we are on edit metadata screen
+      var barPreMetadataHtml = '<div id="bmTopButtons" style="margin:4px;"><button class="islandora-repo-button" value="" name="bm_next" type="button">Next</button><button class="islandora-repo-button" value="" name="bm_cancel" type="button">Cancel</button></div>';
+      jQuery('#content-model-viewer-edit-metadata-form').prepend(barPreMetadataHtml);
+      jQuery("button[name='bm_next']").click(function(){
+        theBmDriver.submitMetadata();
+      });
+      jQuery("button[name='bm_cancel']").click(function(){
+        theBmDriver.cancel();
+      });
+    }
+    if (this.isDisplayingFinal){
+      jQuery("button[name='bm_next']").text("Finish");
+    }
+    jQuery('.form-submit:[value="Cancel"]').addClass("x-hide-display");
+    jQuery('.form-submit:[value="Submit"]').addClass("x-hide-display");
+  }
+  this.submitMetadata = function(){
+    var resOver = Ext.getCmp('cmvtabpanel').getComponent('resource-overview');
+    var theBmDriver = this;
+    resOver.loadEditMetadataContent('#resource-metadata-form form', function (loader, response, options) {
+      if (!theBmDriver.isCompleted()){
+        theBmDriver.readyToDisplayNext = true;
+        theBmDriver.displayNext();
+      }else{
+        theBmDriver.cancel();
+      }
+    });
+  }
+  this.cancel = function(){
+    jQuery("button:contains('Resources')").click();
+    ContentModelViewer.functions.refreshResources();
+    this.isDisplayingFinal = false;
+  }
   this.displayNext = function(){
+    console.log("nextIndex:"+this.nextIndex);
+    if (this.isCompleted()){ alert("Sequential batch metadata displayNext called after it was already complete."); return;}
+    if (!this.readyToDisplayNext){ console.log("Not ready to display next yet"); return; }
+    this.readyToDisplayNext = false;
+    this.isRunning = true;
+    this.isStarted = true;
     var currId = this.fedoraIds[this.nextIndex]; 
-    Ext.getCmp('cmvtabpanel').getComponent('resource-overview').loadContent(
+    var theBmDriver = this;
+    setTimeout(function(){
+      theBmDriver.displayPid(currId);
+    },2000);
+  }
+  this.displayPid = function(currId){
+    var resOver = Ext.getCmp('cmvtabpanel').getComponent('resource-overview');
+    resOver.pid = currId;
+    resOver.loadContent(
       Drupal.settings.basePath+"viewer/"+currId+"/metadata_form"
       ,null //Params
       ,function (loader, response, options) {
         if (typeof response.responseText !== 'undefined') {
           data = JSON.parse(response.responseText);
-          if (data.refresh) {
-            cmv.refreshResource();
-            cmv.refreshResources();
-            cmv.refreshTreeNodes(ContentModelViewer.properties.pids.concept); // Update the object we were previously on
-          }
           //this information will spell out if we need to get the MODS or if we need to get the FGDC data
           var modsOrFgdc = "MODS";
           if (data.data.indexOf("(MODS)") < 0){ modsOrFgdc = "FGDC"; }
@@ -435,19 +484,9 @@ function BatchMetadata(){
               if (modsOrFgdc == "FGDC"){
                 typeToGet = "Tabular";
               }
-              Ext.Msg.alert('Status','typeToGet:'+typeToGet);
+              console.log('typeToGet:'+typeToGet);
               jQuery("#edit-forms").val(typeToGet);
               ContentModelViewer.functions.loadResourceEditMetadataForm(); 
-                          /*
-                          response = JSON.parse(responseText);
-                          if (!response.success){
-                            Ext.Msg.alert('Status','Problem removing resources:'+response);
-                          }else{
-                            Ext.Msg.alert('Status',"Success Response?"+response);
-                            //ContentModelViewer.functions.selectConcept();
-                            //ContentModelViewer.functions.refreshTreeParents(ContentModelViewer.properties.pids.concept);
-                          }
-            */
             },error: function(errorStuff){
               Ext.Msg.alert("Got a HTTP error, maybe the ID was incorrect?");
             }
@@ -456,5 +495,10 @@ function BatchMetadata(){
       }
     ); 
     this.nextIndex++;
+    //check isCompleted to see if you should call displayNext
+    if (this.isCompleted()){ 
+      this.isRunning = false; 
+      this.isDisplayingFinal = true;
+    }
   }
 }
