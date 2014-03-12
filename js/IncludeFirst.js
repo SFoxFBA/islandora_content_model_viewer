@@ -220,6 +220,7 @@ ContentModelViewer.setup.defineFunctions = function () {
     // Display the viewer
     loadViewer: function (pid) {
       var panel, dsid, viewFunction;
+      console.log("loadViewer");
       panel = Ext.getCmp('viewerpanel');
       // @TODO get the rest of the params
       // Create the panel and insert it in the first position if it doesn't exist.
@@ -363,12 +364,12 @@ ContentModelViewer.setup.defineFunctions = function () {
       tabpanel = Ext.getCmp('cmvtabpanel');
       panel = tabpanel.getComponent('resource-overview');
       if (panel) {
-        // Check to see if we can show the viewer?
         tabpanel.setActiveTab(panel);
       }
     },
     //
     showViewer: function () {
+      console.log("showViewer");
       var panel = Ext.getCmp('viewerpanel');
       if (panel) {
         Ext.getCmp('cmvtabpanel').setActiveTab(panel);
@@ -389,7 +390,7 @@ ContentModelViewer.setup.defineFunctions = function () {
         tabpanel = Ext.getCmp('cmvtabpanel'),
         resourceOverview = tabpanel.getComponent('resource-overview'),
         index;
-
+      console.log("setFocusedPid");
       properties.pids.focused = pid;
       if (!isCollection) {
         if (!resourceOverview) { // Create
@@ -609,6 +610,26 @@ Ext.onReady(function () {
   setup.defineModels();
   setup.createStores();
 });
+
+//For when cancel is pressed, what to do: reload the page, basically
+window.clickWait = 10;
+window.properResetUiForCancel = function(thenClickButtonThatSays){
+  var selMod = Ext.getCmp('cmvtreepanel').getSelectionModel();
+  if (selMod){
+    if (selMod.getSelection().length > 0){
+      selMod.select(selMod.getSelection());
+      var pid = selMod.getSelection()[0].get("pid");
+      jQuery('tr[pid="'+pid+'"]').addClass("sidoraTreeMultiSelect");
+      ContentModelViewer.functions.selectConcept(pid);
+    }
+  }
+  if (thenClickButtonThatSays){
+    setTimeout(function(){
+      jQuery("button:contains('"+thenClickButtonThatSays+"')").click();
+    },window.clickWait);
+  }
+};
+
 
 /**
  * Add in prototypes which weren't on Beth's browser, Chrome v32????  Should've been there. Reason missing unknown.

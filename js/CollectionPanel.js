@@ -289,6 +289,7 @@ Ext.onReady(function () {
                 if (rbs.size() == 0){
                   //Error message?
                 }else{
+                  window.bm = new BatchMetadata();
                   if (jQuery("button:contains('Resource Overview')").length == 0) {
                     ContentModelViewer.functions.selectResource(jQuery(rbs[0]).attr('name'));//"si:257367");  //Fill with proper ID
                     //Auto-swaps to tab, images then go to viewer...why?
@@ -296,7 +297,6 @@ Ext.onReady(function () {
                     //Swap to the resource overview tab:
                     jQuery("button:contains('Resource Overview')").click();
                   }
-                  window.bm = new BatchMetadata();
                   for (rbsi=0; rbsi<rbs.size(); rbsi++){
                     var fedoraId = jQuery(rbs[rbsi]).attr('name');
                     window.bm.fedoraIds.push(fedoraId);
@@ -407,7 +407,7 @@ function BatchMetadata(){
     }
     var theBmDriver = this;
     if (jQuery('.form-submit:[value="Cancel"]').length > 0){  //Confirms we are on edit metadata screen
-      var barPreMetadataHtml = '<div id="bmTopButtons" style="margin:4px;"><button class="islandora-repo-button" value="" name="bm_next" type="button">Next</button><button class="islandora-repo-button" value="" name="bm_cancel" type="button">Cancel</button></div>';
+      var barPreMetadataHtml = '<div id="bmTopButtons" style="margin:4px;"><button class="islandora-repo-button" value="" name="bm_next" type="button" title="Save this metadata and see the next">Next</button><button class="islandora-repo-button" value="" name="bm_cancel" type="button" title="Previous changes are already saved">Stop Updating</button></div>'; //Cancel has meant
       jQuery('#content-model-viewer-edit-metadata-form').prepend(barPreMetadataHtml);
       jQuery("button[name='bm_next']").click(function(){
         theBmDriver.submitMetadata();
@@ -418,6 +418,7 @@ function BatchMetadata(){
     }
     if (this.isDisplayingFinal){
       jQuery("button[name='bm_next']").text("Finish");
+      jQuery("button[name='bm_next']").attr("title","Save this metadata and go back to the resources list");
     }
     jQuery('.form-submit:[value="Cancel"]').addClass("x-hide-display");
     jQuery('.form-submit:[value="Submit"]').addClass("x-hide-display");
@@ -448,6 +449,7 @@ function BatchMetadata(){
     this.isStarted = true;
     var currId = this.fedoraIds[this.nextIndex]; 
     var theBmDriver = this;
+    jQuery(".extjs-center-panel:visible").text("Processing...");
     setTimeout(function(){
       theBmDriver.displayPid(currId);
     },2000);
@@ -455,11 +457,15 @@ function BatchMetadata(){
   this.displayPid = function(currId){
     var resOver = Ext.getCmp('cmvtabpanel').getComponent('resource-overview');
     resOver.pid = currId;
+    jQuery("button:contains('Resource Overview')").click();
+    var theBmDriver = this;
     resOver.loadContent(
       Drupal.settings.basePath+"viewer/"+currId+"/metadata_form"
       ,null //Params
       ,function (loader, response, options) {
+        theBmDriver.introduceCancels();
         if (typeof response.responseText !== 'undefined') {
+          jQuery("#content-model-viewer-edit-metadata-form").hide();
           data = JSON.parse(response.responseText);
           //this information will spell out if we need to get the MODS or if we need to get the FGDC data
           var modsOrFgdc = "MODS";
@@ -501,4 +507,30 @@ function BatchMetadata(){
       this.isDisplayingFinal = true;
     }
   }
+  this.introduceCancels = function(){
+	console.log("introduce batch metadata cancels");
+      
+	//The non-cancel "cancels"
+	jQuery("button:contains('Manage')").click(function(){
+	  console.log("cancelling batch metadata - manage clicked");
+	  jQuery("#resource-metadata-form").text("Batch Metadata cancelled. Select a resource on the Resources tab to load information.")
+	  window.bm = null;
+	});
+	jQuery("button:contains('Viewer')").click(function(){
+	  console.log("cancelling batch metadata - viewer clicked");
+	  jQuery("#resource-metadata-form").text("Batch Metadata cancelled. Select a resource on the Resources tab to load information.")
+	  window.bm = null;
+	});
+	jQuery("button:contains('Concept Overview')").click(function(){
+	  console.log("cancelling batch metadata - concept overview clicked");
+	  jQuery("#resource-metadata-form").text("Batch Metadata cancelled. Select a resource on the Resources tab to load information.")
+	  window.bm = null;
+	});
+	jQuery("button:contains('Resources')").click(function(){
+	  console.log("cancelling batch metadata - resources clicked");
+	  jQuery("#resource-metadata-form").text("Batch Metadata cancelled. Select a resource on the Resources tab to load information.")
+	  window.bm = null;
+	});
+  }
 }
+
