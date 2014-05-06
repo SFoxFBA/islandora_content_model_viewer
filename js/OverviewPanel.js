@@ -73,7 +73,8 @@ Ext.onReady(function () {
       }
       loader.load({
         url: url,
-        params: params
+        params: params,
+        timeout: 300000 //300 seconds
       });
     },
     getFormParams: function (form_selector) {

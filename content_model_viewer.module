@@ -882,10 +882,6 @@ function content_model_viewer_form_islandora_xacml_editor_page_submit($form, &$f
  * Show the metadata form.
  */
 function content_model_viewer_metadata_form($pid, $action = 'edit') {
-  ob_start();
-  var_dump($_POST);
-  $result = ob_get_clean();
-  watchdog("BBB_content_viewer_module","POST:".$result);
   // If concept
   $cmodels = content_model_viewer_get_cmodels($pid);
   $id = in_array('islandora:collectionCModel', $cmodels) ? 'concept-metadata-form' : 'resource-metadata-form';
@@ -1742,16 +1738,11 @@ function content_model_viewer_edit_metadata_form(array &$form_state, $pid) {
   $client = $connection_helper->getSoapClient(variable_get('fedora_soap_url', 'http://localhost:8080/fedora/services/access?wsdl'));
   try {
     $edit_form = new EditObjectMetadataForm();
-    //var_dump($form_state);
     $output = $edit_form->create($pid, $client, $form_state);
     $output['which_action'] = array(
       '#type' => 'hidden',
       '#value' => 'edit'
     );
-    //print strftime('%c');
-    //echo '=============OUTPUT============';
-    //var_dump($output);
-    //echo '=============OUTPUT============';
     return $output;
   } catch (Exception $e) {
     $msg = "File: {$e->getFile()}<br/>Line: {$e->getLine()}<br/>Error: {$e->getMessage()}";
@@ -1778,25 +1769,18 @@ function content_model_viewer_edit_metadata_form_validate(array &$form, array &$
   }
 }
 function content_model_viewer_edit_metadata_wizard_form(array &$form_state, $pid){
-  watchdog("BBB_content_viewer_module","in wizard form");
   module_load_include('inc', 'islandora_content_model_forms', 'EditObjectMetadataForm');
   module_load_include('inc', 'fedora_repository', 'ConnectionHelper');
   $current_pid = $pid = $_SESSION['current_pid'];
-  watchdog("BBB_content_viewer_module","cmwemzf:".$_SESSION['current_pid']);
-  ob_start();
-  var_dump($_SESSION['pid_list']);
-  $result = ob_get_clean();
-  watchdog("BBB_content_viewer_module","pid_list:".$result);
   $output = NULL; 
   if (empty($current_pid)) {
     $pulled_pid = array_pop($_SESSION['pid_list']);
     $current_pid = $pid = $pulled_pid;
-  }//$pid = 'si:256421';//'si:256425'; //BBB REMOVE
+  }
   if (!empty($current_pid)){
     $content_model_form_name = $_SESSION['content_model_form_name'];
     $_SESSION['current_pid'] = '';
     if (empty($content_model_form_name)){
-      watchdog("BBB_content_viewer_module","content_model_form_name was blank!!");
       $content_model_form_name = 'General Image Description'; //BBB REMOVE
     }
     $form_state['storage']['step'] = '2';
@@ -1829,23 +1813,18 @@ function content_model_viewer_edit_metadata_wizard_form(array &$form_state, $pid
       $output['#action'] = '/viewer/'.$pid.'/metadata_form';
       //var_dump($output);
       unset($_SESSION['messages']); // Don't display drupal messages to the user for this interface.
-      watchdog("BBB_content_viewer_module","next wizard form complete");
     } catch (Exception $e) {
       $msg = "File: {$e->getFile()}<br/>Line: {$e->getLine()}<br/>Error: {$e->getMessage()}";
       drupal_set_message($msg, 'error');
       return array();
     }
   }
-  watchdog("BBB_content_viewer_module","f_st wizard_finish:".$form_state['values']['wizard_finish'].'--');
-  watchdog("BBB_content_viewer_module","POST wizard_finish:".$_POST['wizard_finish'].'--');
-  watchdog("BBB_content_viewer_module","SESS wizard_finish:".$_SESSION['wizard_finish'].'--');
   if ($_SESSION['wizard_finish']){
     $_SESSION['wizard_finish'] = false;
     $current_pid = NULL;
     $output = NULL;
   }
   if (empty($current_pid)){
-    watchdog("BBB_content_viewer_module","nothing left in pid_list or current_pid cleared (wizard_finish clicked)");
     $form_state['redirect'] = "viewer/{$form_state['values']['pid']}/overview";
     $_SESSION['content_model_viewer_refresh_tree'] = $form_state['values']['pid']; // Yucky hac
     unset($_SESSION['messages']); // Don't display drupal messages to the user for this interface.
@@ -1862,10 +1841,7 @@ function content_model_viewer_edit_metadata_wizard_form_submit(array &$form, arr
     $pid = $form_state['values']['pid'];
     if (empty($_SESSION['initial_upload'])){
       //this edit form s used to batch create the metadata, and do editing we don't want to initially mark the metadata as edited
-      watchdog("BBB_content_viewer_module","set metadata complete:".$pid);
       sidora_mark_as_metadata_complete($pid);
-    }else{
-      watchdog("BBB_content_viewer_module","NOT set metadata complete:".$pid);
     }
   } catch (Exception $e) {
     $msg = "File: {$e->getFile()}<br/>Line: {$e->getLine()}<br/>Error: {$e->getMessage()}";
@@ -1873,11 +1849,9 @@ function content_model_viewer_edit_metadata_wizard_form_submit(array &$form, arr
   }
   $_SESSION['next_pid'] = $_SESSION['pid_list'][0];
   if (empty($_SESSION['next_pid'])){
-    watchdog("BBB_content_viewer_module","next_pid is empty");
     $form_state['redirect'] = "viewer/{$form_state['values']['pid']}/overview";//BBB we'll see
     $_SESSION['content_model_viewer_refresh_tree'] = $form_state['values']['pid'];
   }else{
-    watchdog("BBB_content_viewer_module","next_pid is not empty");
     $form_state['redirect'] = "viewer/{$form_state['values']['pid']}/wizard_step/".$_SESSION['next_pid'];
   }
   unset($_SESSION['messages']); // Don't display drupal messages to the user for this interface.
@@ -1926,13 +1900,7 @@ function content_model_viewer_ingest_resource_metadata_form(array &$form_state, 
 function content_model_viewer_ingest_resource_metadata_form_validate(array &$form, array &$form_state) {
   //  content_model_viewer_ingest_metadata_form_validate($form, $form_state);
   if ($_POST['uploaded_file_dsid'] == 'OBJ' && $_POST['wizard_check'] == TRUE){
-    watchdog("BBB_content_viewer_module","skipping validate");
-	  ob_start();
-	  var_dump($form['#submit']);
-	  $result = ob_get_clean();
-	  watchdog("BBB_content_viewer_module","#submit:".$result);
   }else{
-    watchdog("BBB_content_viewer_module","normal validate");
     fedora_repository_ingest_form_validate($form, $form_state);
   }
 }
@@ -1941,11 +1909,9 @@ function content_model_viewer_ingest_resource_metadata_form_submit(array &$form,
   $_SESSION['content_model_viewer_refresh_tree'] = $form_state['values']['pid']; // Yucky hack
   
   if ($_POST['uploaded_file_dsid'] == 'OBJ' && $_POST['wizard_check'] == TRUE){
-    watchdog('BBB_content_viewer_module','not redir');
     $form_state['redirect'] = FALSE;//"viewer/{$form_state['values']['pid']}/overview";
   }else{
     $form_state['redirect'] = "viewer/{$form_state['values']['pid']}/overview";
-    watchdog('BBB_content_viewer_module','yes redir:'.$form_state['redirect']);
   }
   unset($_SESSION['messages']); // Don't display drupal messages to the user for this interface.
   // Ingestion is handled by the sidora hook... urg..
@@ -1971,14 +1937,12 @@ function content_model_viewer_ingest_metadata_form(array &$form_state, $collecti
   }
   module_load_include('inc', 'islandora_content_model_forms', 'IngestObjectMetadataForm');
   try {
-    watchdog("BBB_content_viewer_module","cmvimf creating ingest form");
     $ingest_form = new IngestObjectMetadataForm();
     $output = $ingest_form->create($collection_pid, NULL, $form_state);
     $output['which_action'] = array(
       '#type' => 'hidden',
       '#value' => 'ingest'
     );
-    watchdog("BBB_content_viewer_module","cmvimf redir:".$form_state['redirect']."--");
     return $output;
   } catch (Exception $e) {
     $msg = "File: {$e->getFile()}<br/>Line: {$e->getLine()}<br/>Error: {$e->getMessage()}";
@@ -1994,9 +1958,6 @@ function content_model_viewer_ingest_metadata_form(array &$form_state, $collecti
  * @param array $form_state
  */
 function content_model_viewer_ingest_metadata_form_validate(array &$form, array &$form_state) {
-    //echo 'STEP:'.$form_state['storage']['step'];
-    //throw new Exception('DING DING 2');
-    //exit();
   if ($form_state['storage']['step'] == 1) {
     $form_state['storage']['step']++;
     $form_state['rebuild'] = TRUE;
@@ -2081,7 +2042,7 @@ function content_model_viewer_ingest_metadata_form_submit(array &$form, array &$
   unset($_SESSION['messages']); // Don't display drupal messages to the user for this interface.
 }
 /*
-BBB TODO REMOVE?
+TODO REMOVE?
 */
 class debugUtils {
     public static function callStack($stacktrace) {

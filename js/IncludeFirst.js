@@ -145,6 +145,11 @@ ContentModelViewer.setup.defineFunctions = function () {
       if (closeResourceTab) { // Don't need to hide the resource if the concept was selected from the resource overview panel
         this.closeResource();
       }
+      if (Ext.getCmp('collectionpanel')){
+        var toReset = Ext.getCmp('collectionpanel').getComponent('collectiondataview').store;
+        toReset.currentPage = 1;
+        toReset.start = 0;
+      }
       this.loadConcept(pid);
       this.loadResources(pid);
       this.loadViewer(pid);
@@ -220,7 +225,6 @@ ContentModelViewer.setup.defineFunctions = function () {
     // Display the viewer
     loadViewer: function (pid) {
       var panel, dsid, viewFunction;
-      console.log("loadViewer");
       panel = Ext.getCmp('viewerpanel');
       // @TODO get the rest of the params
       // Create the panel and insert it in the first position if it doesn't exist.
@@ -390,7 +394,7 @@ ContentModelViewer.setup.defineFunctions = function () {
         tabpanel = Ext.getCmp('cmvtabpanel'),
         resourceOverview = tabpanel.getComponent('resource-overview'),
         index;
-      console.log("setFocusedPid");
+
       properties.pids.focused = pid;
       if (!isCollection) {
         if (!resourceOverview) { // Create

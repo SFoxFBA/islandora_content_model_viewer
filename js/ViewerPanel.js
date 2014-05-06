@@ -28,13 +28,11 @@ Ext.onReady(function () {
       type: 'border'
     },
     setPid: function (pid) {
-      console.log("ViewerPanel setPid");
       this.pid = pid;
       var files = this.getComponent('files');
       files.setPid(pid);
     },
     onLoad: function (store, records, successful, operation, eOpts) {
-      console.log("ViewerPanel onLoad");
       var record, pid, dsid, viewFunction, i;
       for (i = 0; i < records.length; i += 1) {
         record = records[i];

@@ -1,6 +1,4 @@
 Ext.onReady(function () {
-  //Ext.Loader.setConfig({enabled: true});
-  //Ext.Loader.setPath('Ext.ux.DataView', Drupal.settings.basePath+'sites/all/modules/islandora_content_model_viewer/js/extjs_plugins/ux/DataView');
   Ext.define('ContentModelViewer.widgets.CollectionDataView', {
     extend: 'Ext.view.View',
     itemId: 'collectiondataview',
