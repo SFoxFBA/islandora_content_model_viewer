@@ -415,7 +415,7 @@ function updateDragIndicatorText(){
   }
   jQuery("#sidoraDragText").text(tsn.length+" items selected ");
   if (tsn.length == 1) jQuery("#sidoraDragText").text("1 item selected ");
-},200);
+  },200);
 }
 
 
