@@ -6,10 +6,16 @@ Ext.onReady(function () {
     emptyText: 'No Files Available',
     deferEmptyText: false,
     deferInitialRefresh: false,
+    mixins: {
+      dragSelector: 'Ext.ux.DataView.DragSelector',
+      draggable: 'Ext.ux.DataView.Draggable'
+    },
     itemTpl: new Ext.XTemplate(
       '<tpl for=".">',
       ' <tpl if="originalMetadata">',
       '   <div class="member-item">',
+      '    <span class="incompleteMeta" title="Metadata incomplete"></span>',
+      '    <input class="resourceBatchSelector" type="checkbox" style="display:none;float:left;height:100%" name="{pid}"/>',
       '    <span style="float:left;text-align:center">',
       '     <img class="member-item-img" src="{tn}"></img>',
       '    </span>',
@@ -18,6 +24,8 @@ Ext.onReady(function () {
       ' </tpl>',
       ' <tpl if="!originalMetadata">',
       '   <div class="member-item">',
+      '    <span class="completeMeta" title="Metadata complete"></span>',
+      '    <input class="resourceBatchSelector" type="checkbox" style="display:none;float:left;height:100%" name="{pid}"/>',
       '    <span style="float:left;text-align:center">',
       '     <img class="member-item-img" src="{tn}"></img>',
       '    </span>',
@@ -37,16 +45,57 @@ Ext.onReady(function () {
         }
       }
     ),
+    initComponent: function() {
+      var me = this;
+      this.mixins.dragSelector.init(this);
+      this.mixins.draggable.init(this, {
+        ddConfig: {
+          ddGroup: 'cmvDDGroup'
+        }
+      });
+      this.callParent();
+    },
     listeners: {
+      itemclick: {
+        fn: function(view, selections, options, one, two, three){
+          //if not holding control, get rid of all highlights except whatever mouse is over
+          if (window.modifierKeysHeld.ctrl){
+            if (jQuery("[name='"+selections.get("pid")+"']").parent().parent().hasClass("x-item-selected")){
+              jQuery("[name='"+selections.get("pid")+"']").parent().parent().removeClass("x-item-selected");
+            }else{
+              jQuery("[name='"+selections.get("pid")+"']").parent().parent().addClass("x-item-selected");
+            }
+            return;
+          }
+          jQuery(".member-item").parent().each(function(num,a){$(a).removeClass("x-item-selected");});
+          jQuery("[name='"+selections.get("pid")+"']").parent().parent().addClass("x-item-selected");
+        }
+      },
       selectionchange: function (view, selections, options) {
-        var record = selections[0];
-        if (record) {
-          ContentModelViewer.functions.selectResource(record.get('pid'));
+        //var record = selections[0];
+      },
+      beforeselect: function(one, two, three, four){
+        if (window.modifierKeysHeld.ctrl){
+          return false; //Don't select current one
+        }else if(jQuery("[name='"+two.get("pid")+"']").parent().parent().hasClass("x-item-selected")){
+          return false; //expecting a click-drag when choosing one that is already there, look at mouse-up to undo
+        }else{
+          jQuery(".member-item").parent().each(function(num,a){$(a).removeClass("x-item-selected");}) //was a normal reselecting click, remove existing selected
         }
       },
       itemdblclick: function (view, record) {
         ContentModelViewer.functions.selectResource(record.get('pid'));
+      },
+      itemmousedown: {
+        fn: function (view, record, item, index, event) {
+          jQuery(".x-dd-drop-icon").addClass("sidoraDDIcon");
+        }
+      },
+      itemmouseup: {
+        fn: function (view, record, item, index, event) {
+        }
       }
+
     },
     setPid: function (pid) {
       this.pid = pid;
@@ -174,9 +223,126 @@ Ext.onReady(function () {
             store.load();
           }
         }, '->', {
+          xtype: 'combobox',
+          store: Ext.create('Ext.data.Store', {
+            model: Ext.regModel('State',{
+              fields:[
+                {type:'string', name:'name'}
+              ]
+            }),
+            data: [
+              {"name":"Delete"},
+              //{"name":"Copy To..."}
+              {"name":"Edit Metadata..."}
+            ]
+          }),
+          displayField: 'name',
+          width: 120,
+          queryMode: 'local',
+          triggerAction: 'all',
+          emptyText:'Choose action',
+          text: 'Multi-dropdown',
+          disableKeyFilter: true,
+          editable: false,
+          listeners: {
+            'select': function (one, two, three, four){//(button, event) {
+              if (two[0].data.name == "Delete"){
+                rbs = jQuery(".x-item-selected .resourceBatchSelector");
+                var deleteThese = "";
+                for (rbsi=0; rbsi<rbs.size(); rbsi++){
+                  if (deleteThese.length > 0) deleteThese += ",";
+                  deleteThese += jQuery(rbs[rbsi]).attr("name");
+                }
+                //alert("Delete chosen:"+deleteThese);
+                if (rbs.size() == 0){
+                }else{
+                 Ext.Msg.show({
+                  title:'Delete Resources',
+                  msg: "Are you sure you want to delete "+rbs.size()+" Resources? This action cannot be undone.",
+                  buttons: Ext.Msg.YESNO,
+                  fn: function(choice) {
+                    if (choice == 'yes'){
+                      jQuery.ajax({
+                        url: Drupal.settings.basePath+"viewer/"+ContentModelViewer.properties.pids.concept+"/item_information/"+deleteThese+"/delete",
+                        success: function(responseText){
+                          response = JSON.parse(responseText);
+                          if (!response.success){
+                            Ext.Msg.alert('Status','Problem removing resources:'+response);
+                          }else{
+                            Ext.Msg.alert('Status',response.purged.length+" Resource(s) deleted and "+response.unassociated.length+" Resource(s) un-associated from the current object.");
+                            ContentModelViewer.functions.selectConcept();
+                            ContentModelViewer.functions.refreshTreeParents(ContentModelViewer.properties.pids.concept);
+                            jQuery("button:contains('Resources')").click();
+                          }
+                        }
+                      });
+                    }
+                  }
+                 });
+                 this.clearValue();
+                }
+              }
+              if (two[0].data.name == "Edit Metadata..."){
+                rbs = jQuery(".x-item-selected .resourceBatchSelector");
+                if (rbs.size() == 0){
+                  //Error message?
+                }else{
+                  window.bm = new BatchMetadata();
+                  if (jQuery("button:contains('Resource Overview')").length == 0) {
+                    ContentModelViewer.functions.selectResource(jQuery(rbs[0]).attr('name'));//"si:257367");  //Fill with proper ID
+                    //Auto-swaps to tab, images then go to viewer...why?
+                  }else{
+                    //Swap to the resource overview tab:
+                    jQuery("button:contains('Resource Overview')").click();
+                  }
+                  for (rbsi=0; rbsi<rbs.size(); rbsi++){
+                    var fedoraId = jQuery(rbs[rbsi]).attr('name');
+                    window.bm.fedoraIds.push(fedoraId);
+                  }
+                  window.bm.displayNext();
+                }
+                this.clearValue();
+              }
+              if (two[0].data.name == "Copy To..."){
+                rbs = jQuery(".x-item-selected .resourceBatchSelector");
+                var deleteThese = "";
+                for (rbsi=0; rbsi<rbs.size(); rbsi++){
+                  if (deleteThese.length > 0) deleteThese += ",";
+                  deleteThese += jQuery(rbs[rbsi]).attr("name");
+                }
+                //alert("Delete chosen:"+deleteThese);
+                Ext.Msg.prompt(
+                  'Copy Resources',
+                   "Where do you want to copy "+rbs.size()+" resources? DEV, requires si:####### will be changed to lookup like current 'Link to another Concept'. Currently doesn't make checks against it, will 'double associate' if you do it to the same one twice, and will try to add a resource as a resource of a resource, etc.",
+                  function(choice,text) {
+                    if (choice == 'ok'){
+                      jQuery.ajax({
+                        url: Drupal.settings.basePath+"viewer/"+text+"/associate/"+deleteThese,
+                        success: function(responseText){
+                          response = JSON.parse(responseText);
+                          if (!response.success){
+                            Ext.Msg.alert('Status','Problem removing resources:'+response);
+                          }else{
+                            Ext.Msg.alert('Status',"Success Response?"+response);
+                            ContentModelViewer.functions.selectConcept();
+                            ContentModelViewer.functions.refreshTreeParents(ContentModelViewer.properties.pids.concept);
+                          }
+                        },error: function(errorStuff){
+                          Ext.Msg.alert("Got a HTTP error, maybe the ID was incorrect?");
+                        }
+                      });
+                    }
+                  }
+                );
+                this.clearValue();
+              }
+            }
+          }
+        }, {
           xtype: 'button',
           text: 'Add a new Resource',
           handler: function (button, event) {
+            window.tabularDataCodebookStep = "_ANR";
             ContentModelViewer.functions.loadAddResourceForm();
           }
         }],
@@ -196,3 +362,173 @@ Ext.onReady(function () {
     }
   });
 });
+window.wasADeselect=false;
+window.wasASelect=false;
+function getSelectedWithLabels(){
+  rbs = jQuery(".x-item-selected .resourceBatchSelector");
+  var selectedPids = "";
+  for (rbsi=0; rbsi<rbs.size(); rbsi++){
+    var currPid = jQuery(rbs[rbsi]).attr("name");
+    var currText = jQuery(rbs[rbsi]).parent().children(".member-item-label").text();
+    if (selectedPids.indexOf(currPid) == -1){ //don't add twice
+      if (selectedPids.length > 0) selectedPids += "<br>";
+      selectedPids += currPid + " - " + currText; 
+    }
+  }
+  return selectedPids;
+}
+function getSelected(){
+  rbs = jQuery(".x-item-selected .resourceBatchSelector");
+  var selectedPids = "";
+  for (rbsi=0; rbsi<rbs.size(); rbsi++){
+    var currName = jQuery(rbs[rbsi]).attr("name");
+    if (selectedPids.indexOf(currName) == -1){ //don't add twice
+      if (selectedPids.length > 0) selectedPids += ",";
+      selectedPids += currName; 
+    }
+  }
+  return selectedPids;
+}
+
+
+function BatchMetadata(){
+  this.isRunning = false
+  this.fedoraIds = [];
+  this.nextIndex = 0;
+  this.isStarted = false;
+  this.readyToDisplayNext = true;
+  this.isDisplayingFinal = false;  //If it's complete, but the final metadata is still showing on the screen
+  this.isCompleted = function(){ return (this.nextIndex >= this.fedoraIds.length); }
+  this.repurposeEditMetadataScreen = function(){
+    if (!this.isRunning && !this.isDisplayingFinal){
+      return; //shouldn't be repurposing if the batch metadata isn't running
+    }
+    var theBmDriver = this;
+    if (jQuery('.form-submit:[value="Cancel"]').length > 0){  //Confirms we are on edit metadata screen
+      var barPreMetadataHtml = '<div id="bmTopButtons" style="margin:4px;"><button class="islandora-repo-button" value="" name="bm_next" type="button" title="Save this metadata and see the next">Next</button><button class="islandora-repo-button" value="" name="bm_cancel" type="button" title="Previous changes are already saved">Stop Updating</button></div>'; //Cancel has meant
+      jQuery('#content-model-viewer-edit-metadata-form').prepend(barPreMetadataHtml);
+      jQuery("button[name='bm_next']").click(function(){
+        theBmDriver.submitMetadata();
+      });
+      jQuery("button[name='bm_cancel']").click(function(){
+        theBmDriver.cancel();
+      });
+    }
+    if (this.isDisplayingFinal){
+      jQuery("button[name='bm_next']").text("Finish");
+      jQuery("button[name='bm_next']").attr("title","Save this metadata and go back to the resources list");
+    }
+    jQuery('.form-submit:[value="Cancel"]').addClass("x-hide-display");
+    jQuery('.form-submit:[value="Submit"]').addClass("x-hide-display");
+  }
+  this.submitMetadata = function(){
+    var resOver = Ext.getCmp('cmvtabpanel').getComponent('resource-overview');
+    var theBmDriver = this;
+    resOver.loadEditMetadataContent('#resource-metadata-form form', function (loader, response, options) {
+      if (!theBmDriver.isCompleted()){
+        theBmDriver.readyToDisplayNext = true;
+        theBmDriver.displayNext();
+      }else{
+        theBmDriver.cancel();
+      }
+    });
+  }
+  this.cancel = function(){
+    jQuery("button:contains('Resources')").click();
+    ContentModelViewer.functions.refreshResources();
+    this.isDisplayingFinal = false;
+  }
+  this.displayNext = function(){
+    console.log("nextIndex:"+this.nextIndex);
+    if (this.isCompleted()){ alert("Sequential batch metadata displayNext called after it was already complete."); return;}
+    if (!this.readyToDisplayNext){ console.log("Not ready to display next yet"); return; }
+    this.readyToDisplayNext = false;
+    this.isRunning = true;
+    this.isStarted = true;
+    var currId = this.fedoraIds[this.nextIndex]; 
+    var theBmDriver = this;
+    jQuery(".extjs-center-panel:visible").text("Processing...");
+    setTimeout(function(){
+      theBmDriver.displayPid(currId);
+    },2000);
+  }
+  this.displayPid = function(currId){
+    var resOver = Ext.getCmp('cmvtabpanel').getComponent('resource-overview');
+    resOver.pid = currId;
+    jQuery("button:contains('Resource Overview')").click();
+    var theBmDriver = this;
+    resOver.loadContent(
+      Drupal.settings.basePath+"viewer/"+currId+"/metadata_form"
+      ,null //Params
+      ,function (loader, response, options) {
+        theBmDriver.introduceCancels();
+        if (typeof response.responseText !== 'undefined') {
+          jQuery("#content-model-viewer-edit-metadata-form").hide();
+          data = JSON.parse(response.responseText);
+          //this information will spell out if we need to get the MODS or if we need to get the FGDC data
+          var modsOrFgdc = "MODS";
+          if (data.data.indexOf("(MODS)") < 0){ modsOrFgdc = "FGDC"; }
+          jQuery.ajax({
+            url: Drupal.settings.basePath+"viewer/"+currId+"/"+modsOrFgdc+"/view",
+            success: function(responseText){
+              var typeToGet = "unknown";
+              if (responseText.indexOf("&lt;/relatedItem&gt;") > 1){
+                typeToGet = "Camera Trap Image: (MODS)";
+              }
+              if (responseText.indexOf("&lt;/note&gt;") > 1
+                 || responseText.indexOf("&lt;note/&gt;") > 1){
+                typeToGet = "General Image Description: (MODS)";
+              }
+              if (responseText.indexOf("&lt;/extent&gt;") > 1){
+                typeToGet = "Digitized Text";
+              }
+              if (responseText.indexOf("&lt;/shelfLocator&gt;") > 1){
+                typeToGet = "Field Book";
+              }
+              if (modsOrFgdc == "FGDC"){
+                typeToGet = "Tabular";
+              }
+              console.log('typeToGet:'+typeToGet);
+              jQuery("#edit-forms").val(typeToGet);
+              ContentModelViewer.functions.loadResourceEditMetadataForm(); 
+            },error: function(errorStuff){
+              Ext.Msg.alert("Got a HTTP error, maybe the ID was incorrect?");
+            }
+          });
+        }
+      }
+    ); 
+    this.nextIndex++;
+    //check isCompleted to see if you should call displayNext
+    if (this.isCompleted()){ 
+      this.isRunning = false; 
+      this.isDisplayingFinal = true;
+    }
+  }
+  this.introduceCancels = function(){
+	console.log("introduce batch metadata cancels");
+      
+	//The non-cancel "cancels"
+	jQuery("button:contains('Manage')").click(function(){
+	  console.log("cancelling batch metadata - manage clicked");
+	  jQuery("#resource-metadata-form").text("Batch Metadata cancelled. Select a resource on the Resources tab to load information.")
+	  window.bm = null;
+	});
+	jQuery("button:contains('Viewer')").click(function(){
+	  console.log("cancelling batch metadata - viewer clicked");
+	  jQuery("#resource-metadata-form").text("Batch Metadata cancelled. Select a resource on the Resources tab to load information.")
+	  window.bm = null;
+	});
+	jQuery("button:contains('Concept Overview')").click(function(){
+	  console.log("cancelling batch metadata - concept overview clicked");
+	  jQuery("#resource-metadata-form").text("Batch Metadata cancelled. Select a resource on the Resources tab to load information.")
+	  window.bm = null;
+	});
+	jQuery("button:contains('Resources')").click(function(){
+	  console.log("cancelling batch metadata - resources clicked");
+	  jQuery("#resource-metadata-form").text("Batch Metadata cancelled. Select a resource on the Resources tab to load information.")
+	  window.bm = null;
+	});
+  }
+}
+

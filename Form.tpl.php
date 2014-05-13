@@ -2,7 +2,13 @@
    <?php $form = ''; ?>
    <?php switch($action):
 case 'edit': ?>
-   <?php $form = drupal_get_form('content_model_viewer_edit_metadata_form', $pid); ?>
+   <?php 
+$form = drupal_get_form('content_model_viewer_edit_metadata_form', $pid); ?>
+   <?php break;?>
+   <?php case 'wizard-meta': ?>
+   <?php 
+$form = drupal_get_form('content_model_viewer_edit_metadata_form', $pid); 
+   $form = drupal_get_form('content_model_viewer_edit_metadata_wizard_form', $id); ?>
    <?php break;?>
    <?php case 'ingest-concept': ?>
    <?php $form = drupal_get_form('content_model_viewer_ingest_concept_metadata_form', $pid); ?>

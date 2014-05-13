@@ -145,6 +145,11 @@ ContentModelViewer.setup.defineFunctions = function () {
       if (closeResourceTab) { // Don't need to hide the resource if the concept was selected from the resource overview panel
         this.closeResource();
       }
+      if (Ext.getCmp('collectionpanel')){
+        var toReset = Ext.getCmp('collectionpanel').getComponent('collectiondataview').store;
+        toReset.currentPage = 1;
+        toReset.start = 0;
+      }
       this.loadConcept(pid);
       this.loadResources(pid);
       this.loadViewer(pid);
@@ -290,6 +295,7 @@ ContentModelViewer.setup.defineFunctions = function () {
           if (data.refresh) {
             cmv.refreshResource();
             cmv.refreshResources();
+            cmv.refreshTreeNodes(ContentModelViewer.properties.pids.concept); // Update the object we were previously on
           }
         }
       });
@@ -362,12 +368,12 @@ ContentModelViewer.setup.defineFunctions = function () {
       tabpanel = Ext.getCmp('cmvtabpanel');
       panel = tabpanel.getComponent('resource-overview');
       if (panel) {
-        // Check to see if we can show the viewer?
         tabpanel.setActiveTab(panel);
       }
     },
     //
     showViewer: function () {
+      console.log("showViewer");
       var panel = Ext.getCmp('viewerpanel');
       if (panel) {
         Ext.getCmp('cmvtabpanel').setActiveTab(panel);
@@ -608,3 +614,42 @@ Ext.onReady(function () {
   setup.defineModels();
   setup.createStores();
 });
+
+//For when cancel is pressed, what to do: reload the page, basically
+window.clickWait = 10;
+window.properResetUiForCancel = function(thenClickButtonThatSays){
+  var selMod = Ext.getCmp('cmvtreepanel').getSelectionModel();
+  if (selMod){
+    if (selMod.getSelection().length > 0){
+      selMod.select(selMod.getSelection());
+      var pid = selMod.getSelection()[0].get("pid");
+      jQuery('tr[pid="'+pid+'"]').addClass("sidoraTreeMultiSelect");
+      ContentModelViewer.functions.selectConcept(pid);
+    }
+  }
+  if (thenClickButtonThatSays){
+    setTimeout(function(){
+      jQuery("button:contains('"+thenClickButtonThatSays+"')").click();
+    },window.clickWait);
+  }
+};
+
+
+/**
+ * Add in prototypes which weren't on Beth's browser, Chrome v32????  Should've been there. Reason missing unknown.
+ */
+if (typeof String.prototype.startsWith != 'function') {
+    String.prototype.startsWith = function(prefix) {
+        return this.slice(0, prefix.length) == prefix;
+    };
+}
+ 
+if (typeof String.prototype.endsWith != 'function') {
+    String.prototype.endsWith = function(suffix) {
+        return this.slice(-suffix.length) == suffix;
+    };
+}
+if (typeof String.prototype.contains != 'function') {
+  String.prototype.contains = function(it) { return this.indexOf(it) != -1; };
+}
+

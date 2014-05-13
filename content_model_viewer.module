@@ -94,9 +94,33 @@ function content_model_viewer_menu() {
     'access arguments' => array(PERM_CONTENT_MODEL_VIEWER_MODIFY_DATASTEAM_PROPERTIES),
     'type' => MENU_CALLBACK,
   );
+  $items['viewer/source/%/dest/%/move/%'] = array(
+    'page callback' => 'content_model_viewer_move_object',
+    'page arguments' => array(2,4,6),
+    'access arguments' => array(PERM_CONTENT_MODEL_VIEWER_PURGE_OBJECTS),
+    'type' => MENU_CALLBACK,
+  );
+  $items['viewer/%/associate/%'] = array(
+    'page callback' => 'content_model_viewer_associate_object',
+    'page arguments' => array(1,3),
+    'access arguments' => array(PERM_CONTENT_MODEL_VIEWER_PURGE_OBJECTS),
+    'type' => MENU_CALLBACK,
+  );
   $items['viewer/%/purge'] = array(
     'page callback' => 'content_model_viewer_purge_object',
     'page arguments' => array(1),
+    'access arguments' => array(PERM_CONTENT_MODEL_VIEWER_PURGE_OBJECTS),
+    'type' => MENU_CALLBACK,
+  );
+  $items['viewer/%/item_information/%'] = array(
+    'page callback' => 'content_model_viewer_item_information',
+    'page arguments' => array(1, 3),
+    'access arguments' => array(PERM_CONTENT_MODEL_VIEWER_PURGE_OBJECTS),
+    'type' => MENU_CALLBACK,
+  );
+  $items['viewer/%/wizard_step/%'] = array(
+    'page callback' => 'content_model_viewer_wizard_step',
+    'page arguments' => array(1, 3),
     'access arguments' => array(PERM_CONTENT_MODEL_VIEWER_PURGE_OBJECTS),
     'type' => MENU_CALLBACK,
   );
@@ -615,9 +639,14 @@ function content_model_viewer($pid = NULL) {
     return '';
   }
   if ($pid !== NULL) {
-    $item = new fedora_item($pid);
-    if (!$item->exists()) {
-      $pid = NULL;
+    if (strpos($pid,':') === false){
+      watchdog("BBB_content_viewer_module","Tried to get info for bad pid:".$pid."---");
+      $pid = NULL; 
+    }else{
+      $item = new fedora_item($pid);
+      if (!$item->exists()) {
+        $pid = NULL;
+      }
     }
   }
   return theme('content_model_viewer', $pid);
@@ -709,7 +738,11 @@ function content_model_viewer_iframe($pid = NULL) {
   drupal_add_js($js_path . '/CollectionPanel.js');
   drupal_add_js($js_path . '/TreePanel.js');
   drupal_add_js($js_path . '/ContentModelViewer.js');
+  drupal_add_js($js_path . '/extjs_plugins/ux/DataView/DragSelector.js');
+  drupal_add_js($js_path . '/extjs_plugins/ux/DataView/Draggable.js');
   drupal_add_css($path . '/css/ContentModelViewer.css');
+  //Going to be disabling this InitialDisplay via javascript, so don't aggregate it */
+  drupal_add_css($path . '/css/ContentModelViewerInitialDisplay.css', 'module', 'all', FALSE);
   /* Load Viewers */
   module_load_include('inc', 'content_model_viewer', 'viewers/AbstractViewer');
   module_load_include('inc', 'content_model_viewer', 'models/AbstractModel');
@@ -852,7 +885,13 @@ function content_model_viewer_metadata_form($pid, $action = 'edit') {
   // If concept
   $cmodels = content_model_viewer_get_cmodels($pid);
   $id = in_array('islandora:collectionCModel', $cmodels) ? 'concept-metadata-form' : 'resource-metadata-form';
-  $data = theme('content_model_viewer_metadata_form', $id, $pid, 'edit');
+  $wizard_finish = $_POST['wizard_finish'];
+  $_SESSION['wizard_finish'] = $wizard_finish;
+  if ($_POST['wizard_check'] == TRUE && $_POST['form_id'] == 'content_model_viewer_edit_metadata_wizard_form'){
+    $data = theme('content_model_viewer_metadata_form', $id, $pid, 'wizard-meta');
+  }else{
+    $data = theme('content_model_viewer_metadata_form', $id, $pid, 'edit');
+  }
   $javascript = drupal_add_js(NULL, NULL, 'header');
   $settings = $javascript['setting'];
   if (isset($settings)) {
@@ -992,7 +1031,137 @@ function content_model_viewer_properties($pid) {
       exit();
   }
 }
+function content_model_viewer_move_object($sources, $recipient, $related_pids_csv){
+  $_SESSION['messages'] = '';
+  $suboperations = array();
+  $success = true;
+  if (strpos($sources,',') !== FALSE){
+    //In a multi-move, the URL will look something like this:
+    //...../viewer/source/si:src123,si:src456/dest/si:1234/move/si:tomove123,si:tomove456
+    //where si:src123 is the parent of si:tomove123 and si:src456 is the parent of si:tomove456
+    $sourcesArray = explode(',',$sources);
+    $toMoveArray = explode(',',$related_pids_csv);
+    for($i = 0; $i < count($sourcesArray); $i++){
+      //ignore anything that is moved to itself (only do things where dest is not current parent
+      if ($recipient != $sourcesArray[$i]){
+        $cmvaobl = content_model_viewer_associate_object_business_logic($recipient, $toMoveArray[$i]);
+        $suboperations[] = $cmvaobl;
+        //$success = $success && $cmvaobl['success']; //See text below, failure still considered success
+        //The new associate can be unseccussful if the recipient already exists there, but on Jan 22 / Jan 24, 2014
+        //Janet sent emails indicating it should still be removed from other parent
+        //TODO: only remove it under the above circumstances instead of always doing it
+        if (true){//($cmvaobl['success']){
+          $cmvuobl = content_model_viewer_unassociate_object_business_logic($sourcesArray[$i], $toMoveArray[$i]);
+          $success = $success && $cmvuobl['success']; 
+          $suboperations[] = $cmvuobl;
+        }
+      }else{
+          $suboperations[] =  array('operation' => 'move', 'success' => true, 'msg' => 'No move needed, source parent and target parent identical', 'recipient' => $recipient, 'payload' => $toMoveArray[$i]); 
+      }
+    }
+  }else{
+    if ($recipient == $sources){
+      $suboperations[] =  array('operation' => 'move', 'success' => true, 'msg' => 'No move needed, source parent and target parent identical', 'recipient' => $recipient, 'payload' => $toMoveArray[$i]); 
+    }else{
+      $cmvaobl = content_model_viewer_associate_object_business_logic($recipient, $related_pids_csv);
+      $suboperations[] = $cmvaobl;
+      //The new associate can be unseccussful if the recipient already exists there, but on Jan 22 / Jan 24, 2014
+      //Janet sent emails indicating it should still be removed from other parent
+      //TODO: only remove it under the above circumstances instead of always doing it
+      if (true){//($cmvaobl['success']){
+        $cmvuobl = content_model_viewer_unassociate_object_business_logic($sources, $related_pids_csv);
+        $success = /*$cmvaobl['success'] &&*/ $cmvuobl['success']; 
+        $suboperations[] = $cmvuobl;
+      }else{
+        $success = false;
+      }
+    }
+  }
+  $msgs = array();
+  $toReturn = array('operation' => 'move', 'success' => $success, 'msg' => $msgs, 'suboperations' => $suboperations); 
+  echo json_encode($toReturn);
+  exit();
+}
+function content_model_viewer_associate_object($recipient, $related_pids_csv){
+  $_SESSION['messages'] = '';
+  $cmvaobl = content_model_viewer_associate_object_business_logic($recipient, $related_pids_csv);
+  echo json_encode($cmvaobl);
+  exit();
+}
+function content_model_viewer_associate_object_business_logic($recipient, $related_pids_csv){
+  $toReturn = array();
+  module_load_include('inc', 'fedora_repository', 'api/fedora_item');
+  $related_pids = explode(',',$related_pids_csv);
+  $msgs = array();
+  $success = TRUE;
+  $repo = tuque_wrapper_get_repository_instance();
+  $description = $repo->api->a->describeRepository();
+  
+  $parent = $repo->getObject($recipient);
+  foreach ($related_pids as $index => $related) {
+    //Do something if there is an error? TBD TODO
+    $currmsg = array();
+    if (sidora_check_for_relationship($recipient, $related)) {
+      $currmsg['success'] = FALSE;
+      $currmsg['message'] = t('Relationship between @recipient and @related already exists', array('@recipient' => $recipient, '@related' => $related));
+    }else{
+      $child = $repo->getObject($related);
+      $currmsg = sidora_associate_business_logic($repo, $recipient, $related, FALSE);
+    }
+    $success = $success && $currmsg['success'];
+    $msgs[] = $currmsg;
+  }
+  $toReturn = array('operation' => 'associate', 'success' => $success, 'msg' => $msgs, 'recipient' => $recipient, 'payload' => $related_pids_csv); 
+  return $toReturn;
+}
 
+function content_model_viewer_unassociate_object_business_logic($unassociate_from, $related_pids_csv){
+  $toReturn = array();
+  module_load_include('inc', 'fedora_repository', 'api/fedora_item');
+  $related_pids = explode(',',$related_pids_csv);
+  $msgs = array();
+  $success = TRUE;
+  $repo = tuque_wrapper_get_repository_instance();
+  $description = $repo->api->a->describeRepository();
+  $parent = $repo->getObject($unassociate_from);
+  foreach ($related_pids as $index => $related) {
+    $currmsg = array();
+    if (!sidora_check_for_relationship($unassociate_from, $related)) {
+      $currmsg['success'] = FALSE;
+      $currmsg['message'] = t('Relationship between @uaf and @related does not exist', array('@uaf' => $unassociate_from, '@related' => $related));
+    }else{
+      $child = $repo->getObject($related);
+      $currmsg = sidora_unassociate_business_logic($repo, $unassociate_from, $related, FALSE);
+    }
+    $success = $success && $currmsg['success'];
+    $msgs[] = $currmsg;
+  }
+  $toReturn = array('operation' => 'unassociate', 'success' => $success, 'msg' => $msgs, 'recipient' => $unassociate_from, 'payload' => $related_pids_csv); 
+  return $toReturn;
+}
+
+function content_model_viewer_purge_objects($pids){
+  $_SESSION['messages'] = '';
+  $cmvpobl = content_model_viewer_purge_objects_business_logic($pids);
+  echo json_encode($cmvpobl);
+  exit();
+}
+function content_model_viewer_purge_objects_business_logic($pids){
+  $toReturn = array();
+  $msgs = array();
+  $success = TRUE;
+  watchdog("BBB_content_viewer_module","cmvpobl pids: $pids");
+  if (!empty($pids)){
+    foreach ($pids as $index => $pid) {
+      //Do something if there is an error? TODO
+      $currmsg = content_model_viewer_purge_object_choose_exit($pid,FALSE);
+      $success = $success && $currmsg['success'];
+      $msgs[] = $currmsg;
+    }
+  }
+  $toReturn = array('success' => $success, 'msg' => $msgs);
+  return $toReturn;
+}
 /**
  * Purges the object identified by $pid.
  *
@@ -1003,6 +1172,16 @@ function content_model_viewer_properties($pid) {
  * @return string
  */
 function content_model_viewer_purge_object($pid) {
+  //Decide if this is a multi-delete or not
+  //identifiers cannot have commas, so it's a good char to use
+  $pids = explode(',',$pid);
+  if (count($pids)==1){
+    content_model_viewer_purge_object_choose_exit($pid,TRUE);
+  }else{
+    content_model_viewer_purge_objects($pids);
+  }
+}
+function content_model_viewer_purge_object_choose_exit($pid,$shouldEchoAndExit){
   module_load_include('inc', 'sidora', 'includes/utils');
   module_load_include('inc', 'fedora_repository', 'api/fedora_item');
   module_load_include('inc', 'content_model_viewer', 'ObjectProperties');
@@ -1048,11 +1227,17 @@ function content_model_viewer_purge_object($pid) {
           if (!isset($description)) { // Couldn't reach the repository.
             drupal_set_message(t('The Fedora repository server is currently unavailable. Please contact the site administrator.'), 'error', FALSE);
           }
-          drupal_not_found();
+          if ($shouldEchoAndExit)
+            drupal_not_found();
+          else
+            return array('success' => FALSE, 'msg' => 'not_found', 'pid' => $pid); 
           break;
         case '401':
         case '403':
-          drupal_access_denied();
+          if ($shouldEchoAndExit)
+            drupal_access_denied();
+          else
+            return array('success' => FALSE, 'msg' => 'access_denied', 'pid' => $pid); 
           break;
         default:
           drupal_set_message(t('An error occured when attempting to access the fedora repository. Please contact the site administrator.'), 'error', FALSE);
@@ -1067,27 +1252,223 @@ function content_model_viewer_purge_object($pid) {
             '%line' => $caller['line']
           );
           watchdog('islandora', $message, $variables, WATCHDOG_ERROR, NULL);
-          drupal_not_found();
+          if ($shouldEchoAndExit)
+            drupal_not_found();
+          else
+            return array('success' => FALSE, 'msg' => 'not_found', 'pid' => $pid); 
           break;
       }
-      exit();
+      if ($shouldEchoAndExit)
+        exit();
+      else
+        return;
     }
 
   }
   else {
     $message = t('Object does not exist or is in a in-active state.');
   }
+  if ($shouldEchoAndExit){
+    echo json_encode(array('success' => $success, 'msg' => $message, 'pid' => $pid));
+    exit();
+  }else{
+    return array('success' => $success, 'msg' => $message, 'pid' => $pid);
+  }
 
-  echo json_encode(array('success' => $success, 'msg' => $message, 'pid' => $pid));
+}
+function content_model_viewer_item_information($parent_pid, $child_pids_string, $batch_action = '') { 
+  if ($batch_action == 'delete'){
+    module_load_include('inc', 'fedora_repository', 'api/fedora_item');
+    $child_pids = explode(",",$child_pids_string);
+    $child_pids_purged = array();
+    $child_pids_unassociated = array();
+    $success = TRUE;
+    $msgs = array();
+    foreach ($child_pids as $child_pid){ 
+      $parents = sidora_get_parents($child_pid);
+      if (count($parents)==1){
+        $true_parent = key($parents);
+        if ($true_parent == $parent_pid){
+         $msgs[] = "Should purge this (single parent):$parent_pid object:$child_pid";
+         $child_pids_purged[] = $child_pid;
+         $currmsg = content_model_viewer_purge_object_choose_exit($child_pid,FALSE);
+         $success = $success && $currmsg['success'];
+        }else{
+         //echo "Tried to remove something from not its parent:$parent_pid true_parent:".$true_parent." object:$child_pid\n";
+         $msgs[] = "Input child pid:$child_pid is not a child of input parent:$parent_pid";
+        }
+      }else{
+         $found_parent = FALSE;
+         foreach($parents as $curr_parent_pid => $curr_parent_name){
+           if ($curr_parent_pid == $parent_pid){
+             $msgs[] = "Should remove from parent:$parent_pid true_parent:".$curr_parent_pid." object:$child_pid";
+             content_model_viewer_remove_from_collection_choose_exit($child_pid, $parent_pid, TRUE);
+             $child_pids_unassociated[] = $child_pid;
+             $found_parent = TRUE;
+           }
+         }
+         if (!$found_parent){
+             $msgs[] = "Parent:$parent_pid not found in list of parents for object:$child_pid";
+         }
+      }
+      //var_dump($parents);
+    }
+    echo json_encode(array('success' => TRUE, 'purged' => $child_pids_purged, 'unassociated' => $child_pids_unassociated, 'messages' => $msgs));
+    
+    //$document = new DOMDocument();
+    //$document->loadXML($xml);
+    //$xpath = new DOMXPath($document);
+    //$result = $xpath->query('//*[local-name()="title"]');
+    //$title = $result->item(0);
+    //$result = $xpath->query('//*[local-name()="identifier"]');
+    //$identifier = $result->item(0);
+    //$variables['table'] = theme_table(array('Field', 'Value'), array(
+    //  array('Title', $title->textContent),
+    //  array('Identifier', $identifier->textContent))
+    //);
+  }
   exit();
+}
+function content_model_viewer_wizard_codebook_lookup(array &$form){
+  return array(
+    // The object that will be related to. Default isn't set via the form state
+    // as we want the field to be empty if it fails validation.
+    'related' => array(
+      '#id' => 'codebook-id',
+      '#type' => 'textfield',
+      '#title' => t('Use Existing Tabular Data Codebook'),
+      '#autocomplete_path' => MENU_CALLBACK_SIDORA_CODEBOOKS,
+      '#element_validate' => array('sidora_associate_validate_non_circular'),
+      '#description' => t('Type a codebook name to associate with the tabular dataset'),
+    ),
+  );
 
+}
+function content_model_viewer_wizard_step($pid, $type = 'concept') { 
+/*
+Decide what is the easiest thing to do...
+
+Hard code each set of dsid by type:
+Image: MODS
+Tabular: FGDC
+PDF: MODS
+
+Yes, this is easiest.  So, if it's a Tabular look up FGDC, else look up MODS
+
+Image:
+  is Camera Trap if:
+    relatedItem identifier
+    originInfo dateOther
+  is General if:
+    genre
+    note
+
+
+PDF:
+  is Digitized Text if:
+    genre
+    originInfo dateIssued
+    physicalDescription extent
+  is Field Book if:
+    location shelfLocator
+
+what's the plan?
+set window.sequentialBatchMetadata = false; when opening the resources tab.
+
+Open the Resource Overview tab if it's not open
+    Check via:
+    if (jQuery("button:contains('Resource Overview')").length == 0) {
+      ContentModelViewer.functions.selectResource("si:257367");  //Fill with proper ID
+      //Auto-swaps to tab
+    }else{
+      //Swap to the resource overview tab:
+      jQuery("button:contains('Resource Overview')").click();
+    }
+Indicate we're going to be doing a batch with something like window.sequentialBatchMetadata = true;
+For each resource:
+  Get the MODS data and the FGDC data
+  If it's MODS data, figure out which type
+  Load the metadata form for the resource
+  Choose the right form type on the form
+  Auto-submit the first form
+  Change the Submit button to either "next" or "finish"
+  On cancel, window.se.....data = false;
+  On resource overview, when loaded, initiate next resource
+
+What does this look like in code?
+
+Start the first "edit metadata" section
+Once user completes the first "edit meta" section, start a new one
+  So here we have to determine when we can get a hook to knowing the first meta section is complete
+  We can hook into the resource overview refresh, which will run the drupal behaviors
+  So have a behavior to look into if we are currently running a batch metadata"
+
+*/
+  if ($type == 'test'){
+    $fs = array();
+    $mf = xml_form_builder_get_form($fs, "Research Project", NULL);
+    
+    var_dump($mf);
+    print 'booya';
+  module_load_include('inc', 'fedora_repository', 'api/fedora_item');
+      $item = new Fedora_Item("si:257368");//$pid);
+      $keys = array_keys($item->datastreams);
+    var_dump($keys);
+   $content_model_pid = 'si:fieldbookCModel';
+   // $content_model_pid = ContentModel::getPidFromIdentifier($identifier);
+   $form_names = islandora_content_model_get_form_names($content_model_pid);
+   var_dump($form_names);
+     // $item->datastreams[$dsid];
+    exit();
+  }
+  if ($pid == 'codebook'){
+    echo drupal_get_form('content_model_viewer_wizard_codebook_lookup');
+    exit();
+  }
+  if ($type == 'wizard_purge'){
+    $to_delete = $_SESSION['orig_pid_list'];
+    unset($_SESSION['orig_pid_list']);
+    content_model_viewer_purge_objects($to_delete);
+  }
+  $cmodels = content_model_viewer_get_cmodels($pid);
+  $id = $type == 'concept' ? 'add-concept-form' : 'add-resource-form';
+  $action = $type == 'concept' ? 'ingest-concept' : 'ingest-resource';
+  $data = theme('content_model_viewer_metadata_form', $id, $pid, 'wizard-meta');
+  //$javascript = array();//drupal_add_js(NULL, NULL, 'header');
+  $settings = array();
+  $files = array();
+  $css_files = array();
+   
+  header("Content-type: application/json");
+  echo json_encode(array('success' => TRUE, 'data' => $data, 'func' => NULL, 'settings' => $settings, 'js' => $files, 'css' => $css_files, 'refresh' => $refresh));
+  exit();
+  
 }
 
 function content_model_viewer_add_object($pid, $type = 'concept') { // Ugly hacks!
+  $postedCodebookId = $_POST['metadata_form_codebook_id']; //I hate this code, can't wait to rewrite in proper submit - RJA 2014-01-30
+  if (!empty($postedCodebookId)){
+    $_SESSION['codebook_id_for_ingest'] = $postedCodebookId;
+    watchdog("BBB_content_viewer_module","added codebook-id to session:".$_SESSION['codebook_id_for_ingest'].'---');
+  }
+  $run_wizard_meta = ($_POST['uploaded_file_dsid'] == 'OBJ' && $_POST['wizard_check'] == TRUE);
+  $form_name_test = $_POST['forms'];
   $cmodels = content_model_viewer_get_cmodels($pid);
   $id = $type == 'concept' ? 'add-concept-form' : 'add-resource-form';
   $action = $type == 'concept' ? 'ingest-concept' : 'ingest-resource';
   $data = theme('content_model_viewer_metadata_form', $id, $pid, $action);
+  if ($run_wizard_meta){
+    if (!empty($form_name_test)){
+      $_SESSION['content_model_form_name'] = $form_name_test;
+    }
+    $data = theme('content_model_viewer_metadata_form', $id, $pid, 'wizard-meta');
+  }else{
+    unset($_SESSION['pid_list']);
+    unset($_SESSION['current_pid']);
+    unset($_SESSION['content_model_form_name']);
+    unset($_SESSION['orig_pid_list']);
+    unset($_SESSION['next_pid']);
+  }
   $javascript = drupal_add_js(NULL, NULL, 'header');
   $settings = $javascript['setting'];
   if (isset($settings)) {
@@ -1112,11 +1493,14 @@ function content_model_viewer_add_object($pid, $type = 'concept') { // Ugly hack
   exit();
 }
 
+function content_model_viewer_remove_from_collection($child_pid, $parent_pid) {
+  content_model_viewer_remove_from_collection_choose_exit($child_pid,$parent_pid,FALSE);
+}
 
 /**
  *
  */
-function content_model_viewer_remove_from_collection($pid, $value) {
+function content_model_viewer_remove_from_collection_choose_exit($pid, $value, $internal_call) {
   module_load_include('inc', 'fedora_repository', 'CollectionClass');
   module_load_include('inc', 'fedora_repository', 'api/fedora_item');
   module_load_include('inc', 'sidora', 'includes/utils');
@@ -1136,6 +1520,9 @@ function content_model_viewer_remove_from_collection($pid, $value) {
     sidora_update_relationship(RELS_EXT_URI, $predicate, $recipient, $related, TRUE);
 
   } catch(Exception $e) {
+    if ($internal_call){
+      return FALSE;
+    }
     $code = $e->getCode();
     switch ($code) {
       case '404':
@@ -1166,9 +1553,12 @@ function content_model_viewer_remove_from_collection($pid, $value) {
     }
     exit();
   }
-
-  echo json_encode(array('success' => TRUE, 'msg' => t('Removed Relationship')));
-  exit();
+  if ($internal_call){
+    return TRUE;
+  }else{
+    echo json_encode(array('success' => TRUE, 'msg' => t('Removed Relationship')));
+    exit();
+  }
 }
 /**
  * Adds a datastream to the object identified by $pid.*
@@ -1378,7 +1768,94 @@ function content_model_viewer_edit_metadata_form_validate(array &$form, array &$
     $xml_form->validate($form, $form_state);
   }
 }
+function content_model_viewer_edit_metadata_wizard_form(array &$form_state, $pid){
+  module_load_include('inc', 'islandora_content_model_forms', 'EditObjectMetadataForm');
+  module_load_include('inc', 'fedora_repository', 'ConnectionHelper');
+  $current_pid = $pid = $_SESSION['current_pid'];
+  $output = NULL; 
+  if (empty($current_pid)) {
+    $pulled_pid = array_pop($_SESSION['pid_list']);
+    $current_pid = $pid = $pulled_pid;
+  }
+  if (!empty($current_pid)){
+    $content_model_form_name = $_SESSION['content_model_form_name'];
+    $_SESSION['current_pid'] = '';
+    if (empty($content_model_form_name)){
+      $content_model_form_name = 'General Image Description'; //BBB REMOVE
+    }
+    $form_state['storage']['step'] = '2';
+    $form_state['storage']['xml'] = true;
+    $form_state['submitted'] = true;
+    $form_state['values']['form_id'] = 'content_model_viewer_edit_metadata_form';
+    $form_state['values']['op'] = 'Next';
+    $form_state['values']['submit'] = 'Next';
+    $form_state['values']['which_action'] = 'Edit';
+    $form_state['values']['forms'] = $content_model_form_name; 
+    $form_state['post'] = array();
+    $form_state['post']['which_action'] = 'edit';
+    $form_state['#submit'][] = 'content_model_viewer_edit_metadata_wizard_form_submit';
+ 
+    $connection_helper = new ConnectionHelper();
+    $client = $connection_helper->getSoapClient(variable_get('fedora_soap_url', 'http://localhost:8080/fedora/services/access?wsdl'));
+    try {
+      $edit_form = new EditObjectMetadataForm();
+      //var_dump($form_state);
+      $output = $edit_form->create($pid, $client, $form_state);
 
+      $output['which_action'] = array(
+        '#type' => 'hidden',
+        '#value' => 'edit'
+      );
+      $output['wiz_next'] = array(
+        '#type' => 'hidden',
+        '#value' => $_SESSION['pid_list'][0],
+      );
+      $output['#action'] = '/viewer/'.$pid.'/metadata_form';
+      //var_dump($output);
+      unset($_SESSION['messages']); // Don't display drupal messages to the user for this interface.
+    } catch (Exception $e) {
+      $msg = "File: {$e->getFile()}<br/>Line: {$e->getLine()}<br/>Error: {$e->getMessage()}";
+      drupal_set_message($msg, 'error');
+      return array();
+    }
+  }
+  if ($_SESSION['wizard_finish']){
+    $_SESSION['wizard_finish'] = false;
+    $current_pid = NULL;
+    $output = NULL;
+  }
+  if (empty($current_pid)){
+    $form_state['redirect'] = "viewer/{$form_state['values']['pid']}/overview";
+    $_SESSION['content_model_viewer_refresh_tree'] = $form_state['values']['pid']; // Yucky hac
+    unset($_SESSION['messages']); // Don't display drupal messages to the user for this interface.
+  }
+  if (!empty($output)){
+    return $output;
+  }
+}
+function content_model_viewer_edit_metadata_wizard_form_submit(array &$form, array &$form_state) {
+  module_load_include('inc', 'islandora_content_model_forms', 'EditObjectMetadataForm');
+  try {
+    $edit_form = new EditObjectMetadataForm();
+    $edit_form->submit($form, $form_state);
+    $pid = $form_state['values']['pid'];
+    if (empty($_SESSION['initial_upload'])){
+      //this edit form s used to batch create the metadata, and do editing we don't want to initially mark the metadata as edited
+      sidora_mark_as_metadata_complete($pid);
+    }
+  } catch (Exception $e) {
+    $msg = "File: {$e->getFile()}<br/>Line: {$e->getLine()}<br/>Error: {$e->getMessage()}";
+    drupal_set_message($msg, 'error');
+  }
+  $_SESSION['next_pid'] = $_SESSION['pid_list'][0];
+  if (empty($_SESSION['next_pid'])){
+    $form_state['redirect'] = "viewer/{$form_state['values']['pid']}/overview";//BBB we'll see
+    $_SESSION['content_model_viewer_refresh_tree'] = $form_state['values']['pid'];
+  }else{
+    $form_state['redirect'] = "viewer/{$form_state['values']['pid']}/wizard_step/".$_SESSION['next_pid'];
+  }
+  unset($_SESSION['messages']); // Don't display drupal messages to the user for this interface.
+}
 /**
  * Submit Edit Form.
  *
@@ -1415,17 +1892,27 @@ function content_model_viewer_ingest_concept_metadata_form_submit(array &$form, 
 }
 
 function content_model_viewer_ingest_resource_metadata_form(array &$form_state, $collection_pid) {
+  watchdog("BBB_content_viewer_module","cmvirmf");
+  watchdog("BBB_content_viewer_module","cmvirmf redir:".$form_state['redirect']."--");
   return content_model_viewer_ingest_metadata_form($form_state, $collection_pid);
 }
 
 function content_model_viewer_ingest_resource_metadata_form_validate(array &$form, array &$form_state) {
   //  content_model_viewer_ingest_metadata_form_validate($form, $form_state);
-  fedora_repository_ingest_form_validate($form, $form_state);
+  if ($_POST['uploaded_file_dsid'] == 'OBJ' && $_POST['wizard_check'] == TRUE){
+  }else{
+    fedora_repository_ingest_form_validate($form, $form_state);
+  }
 }
 
 function content_model_viewer_ingest_resource_metadata_form_submit(array &$form, array &$form_state) {
   $_SESSION['content_model_viewer_refresh_tree'] = $form_state['values']['pid']; // Yucky hack
-  $form_state['redirect'] = "viewer/{$form_state['values']['pid']}/overview";
+  
+  if ($_POST['uploaded_file_dsid'] == 'OBJ' && $_POST['wizard_check'] == TRUE){
+    $form_state['redirect'] = FALSE;//"viewer/{$form_state['values']['pid']}/overview";
+  }else{
+    $form_state['redirect'] = "viewer/{$form_state['values']['pid']}/overview";
+  }
   unset($_SESSION['messages']); // Don't display drupal messages to the user for this interface.
   // Ingestion is handled by the sidora hook... urg..
 }
@@ -1553,4 +2040,18 @@ function content_model_viewer_ingest_metadata_form_submit(array &$form, array &$
   }
   $form_state['redirect'] = "viewer/{$form_state['values']['pid']}/overview";
   unset($_SESSION['messages']); // Don't display drupal messages to the user for this interface.
+}
+/*
+TODO REMOVE?
+*/
+class debugUtils {
+    public static function callStack($stacktrace) {
+        print str_repeat("=", 50) ."\n";
+        $i = 1;
+        foreach($stacktrace as $node) {
+            print "<br>";
+            print "$i. ".basename($node['file']) .":" .$node['function'] ."(" .$node['line'].")\n";
+            $i++;
+        }
+    } 
 }

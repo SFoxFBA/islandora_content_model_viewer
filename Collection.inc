@@ -92,7 +92,6 @@ class Collection {
   public function __construct($pid) {
     $this->pid = $pid;
     $sort = array(new stdClass(), new stdClass());
-    //$sort[0]->property = 'label';
     $sort[0]->property = 'created';
     $sort[0]->direction = 'ASC';
     $filter = array(new stdClass());
