@@ -472,17 +472,17 @@ function BatchMetadata(){
             url: Drupal.settings.basePath+"viewer/"+currId+"/"+modsOrFgdc+"/view",
             success: function(responseText){
               var typeToGet = "unknown";
-              if (responseText.indexOf("&lt;/relatedItem&gt;") > 1){
-                typeToGet = "Camera Trap Image: (MODS)";
-              }
               if (responseText.indexOf("&lt;/note&gt;") > 1
                  || responseText.indexOf("&lt;note/&gt;") > 1){
                 typeToGet = "General Image Description: (MODS)";
               }
-              if (responseText.indexOf("&lt;/extent&gt;") > 1){
+              if (responseText.indexOf("&lt;dateOther") > 1){
+                typeToGet = "Camera Trap Image: (MODS)";
+              }
+              if (responseText.indexOf("&lt;placeTerm") > 1){
                 typeToGet = "Digitized Text";
               }
-              if (responseText.indexOf("&lt;/shelfLocator&gt;") > 1){
+              if (responseText.indexOf("&lt;name displayLabel") > 1){
                 typeToGet = "Field Book";
               }
               if (modsOrFgdc == "FGDC"){
