@@ -480,7 +480,7 @@ function BatchMetadata(){
                 typeToGet = "Camera Trap Image: (MODS)";
               }
               if (responseText.indexOf("&lt;placeTerm") > 1){
-                typeToGet = "Digitized Text";
+                typeToGet = "Digitized Text (PDF)";
               }
               if (responseText.indexOf("&lt;name displayLabel") > 1){
                 typeToGet = "Field Book";
@@ -506,26 +506,26 @@ function BatchMetadata(){
     }
   }
   this.introduceCancels = function(){
-	console.log("introduce batch metadata cancels");
+	//console.log("introduce batch metadata cancels");
       
 	//The non-cancel "cancels"
 	jQuery("button:contains('Manage')").click(function(){
-	  console.log("cancelling batch metadata - manage clicked");
+	  //console.log("cancelling batch metadata - manage clicked");
 	  jQuery("#resource-metadata-form").text("Batch Metadata cancelled. Select a resource on the Resources tab to load information.")
 	  window.bm = null;
 	});
 	jQuery("button:contains('Viewer')").click(function(){
-	  console.log("cancelling batch metadata - viewer clicked");
+	  //console.log("cancelling batch metadata - viewer clicked");
 	  jQuery("#resource-metadata-form").text("Batch Metadata cancelled. Select a resource on the Resources tab to load information.")
 	  window.bm = null;
 	});
 	jQuery("button:contains('Concept Overview')").click(function(){
-	  console.log("cancelling batch metadata - concept overview clicked");
+	  //console.log("cancelling batch metadata - concept overview clicked");
 	  jQuery("#resource-metadata-form").text("Batch Metadata cancelled. Select a resource on the Resources tab to load information.")
 	  window.bm = null;
 	});
 	jQuery("button:contains('Resources')").click(function(){
-	  console.log("cancelling batch metadata - resources clicked");
+	  //console.log("cancelling batch metadata - resources clicked");
 	  jQuery("#resource-metadata-form").text("Batch Metadata cancelled. Select a resource on the Resources tab to load information.")
 	  window.bm = null;
 	});
