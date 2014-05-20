@@ -299,7 +299,7 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
       fn: function (view, record, item, index, event) {
         //TODO: TBD: reselect what got unselected
         jQuery(".x-dd-drop-icon").addClass("sidoraDDIcon");
-        jQuery(item).attr("parentpid",record.parentNode.get('pid'));
+        if (record.parentNode) jQuery(item).attr("parentpid",record.parentNode.get('pid'));
         jQuery(item).attr("pid",record.get('pid')); //ExtJS became too cumbersome to try and get back and forth between tree node and data
         //Perhaps there is an easy way to get the data from the tree when only having the DOM object? I did not find it, assumed starting from
         //the tree view since that is the connection between the DOM and the ExtJS store but couldn't find anything simple -- e.g. only get all
