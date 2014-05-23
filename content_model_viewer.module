@@ -1841,9 +1841,6 @@ function content_model_viewer_edit_metadata_wizard_form(array &$form_state, $pid
     $_SESSION['content_model_viewer_refresh_tree'] = $form_state['values']['pid']; // Yucky hac
     unset($_SESSION['messages']); // Don't display drupal messages to the user for this interface.
   }
-  //Element::print_hash($output, 1, 'cmv');  //Proof the hashes exist when form is made
-  //print_r ($output);
-  //$output['#cache'] = TRUE; //maybe?
   if (!empty($output)){
     return $output;
   }
