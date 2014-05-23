@@ -1150,7 +1150,6 @@ function content_model_viewer_purge_objects_business_logic($pids){
   $toReturn = array();
   $msgs = array();
   $success = TRUE;
-  watchdog("BBB_content_viewer_module","cmvpobl pids: $pids");
   if (!empty($pids)){
     foreach ($pids as $index => $pid) {
       //Do something if there is an error? TODO
@@ -1435,7 +1434,10 @@ Once user completes the first "edit meta" section, start a new one
   $action = $type == 'concept' ? 'ingest-concept' : 'ingest-resource';
   $data = theme('content_model_viewer_metadata_form', $id, $pid, 'wizard-meta');
   //$javascript = array();//drupal_add_js(NULL, NULL, 'header');
-  $settings = array();
+  $javascript = drupal_add_js(NULL, NULL, 'header');
+  $settings = call_user_func_array('array_merge_recursive', $javascript['setting']);
+  unset($settings['ahah']['']);
+
   $files = array();
   $css_files = array();
    
@@ -1768,17 +1770,27 @@ function content_model_viewer_edit_metadata_form_validate(array &$form, array &$
     $xml_form->validate($form, $form_state);
   }
 }
+function content_model_viewer_edit_metadata_wizard_form_validate(array &$form, array &$form_state) {
+    module_load_include('inc', 'xml_form_api', 'XMLForm');
+    $xml_form = new XMLForm($form_state);
+    $xml_form->validate($form, $form_state);
+}
 function content_model_viewer_edit_metadata_wizard_form(array &$form_state, $pid){
   module_load_include('inc', 'islandora_content_model_forms', 'EditObjectMetadataForm');
   module_load_include('inc', 'fedora_repository', 'ConnectionHelper');
   $current_pid = $pid = $_SESSION['current_pid'];
+  $last_pid = $_SESSION['last_pid'];
+  if (isset($_POST['op'])){
+    $current_pid = $pid = $last_pid;
+  }
   $output = NULL; 
-  if (empty($current_pid)) {
+  if (empty($current_pid) && is_array($_SESSION['pid_list'])) {
     $pulled_pid = array_pop($_SESSION['pid_list']);
     $current_pid = $pid = $pulled_pid;
   }
   if (!empty($current_pid)){
     $content_model_form_name = $_SESSION['content_model_form_name'];
+    $_SESSION['last_pid'] = $current_pid;
     $_SESSION['current_pid'] = '';
     if (empty($content_model_form_name)){
       $content_model_form_name = 'General Image Description'; //BBB REMOVE
@@ -1829,6 +1841,9 @@ function content_model_viewer_edit_metadata_wizard_form(array &$form_state, $pid
     $_SESSION['content_model_viewer_refresh_tree'] = $form_state['values']['pid']; // Yucky hac
     unset($_SESSION['messages']); // Don't display drupal messages to the user for this interface.
   }
+  //Element::print_hash($output, 1, 'cmv');  //Proof the hashes exist when form is made
+  //print_r ($output);
+  //$output['#cache'] = TRUE; //maybe?
   if (!empty($output)){
     return $output;
   }
@@ -1892,14 +1907,13 @@ function content_model_viewer_ingest_concept_metadata_form_submit(array &$form, 
 }
 
 function content_model_viewer_ingest_resource_metadata_form(array &$form_state, $collection_pid) {
-  watchdog("BBB_content_viewer_module","cmvirmf");
-  watchdog("BBB_content_viewer_module","cmvirmf redir:".$form_state['redirect']."--");
   return content_model_viewer_ingest_metadata_form($form_state, $collection_pid);
 }
 
 function content_model_viewer_ingest_resource_metadata_form_validate(array &$form, array &$form_state) {
   //  content_model_viewer_ingest_metadata_form_validate($form, $form_state);
   if ($_POST['uploaded_file_dsid'] == 'OBJ' && $_POST['wizard_check'] == TRUE){
+   content_model_viewer_edit_metadata_wizard_form_validate($form, $form_state);
   }else{
     fedora_repository_ingest_form_validate($form, $form_state);
   }
