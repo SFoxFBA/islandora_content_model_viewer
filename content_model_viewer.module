@@ -640,7 +640,7 @@ function content_model_viewer($pid = NULL) {
   }
   if ($pid !== NULL) {
     if (strpos($pid,':') === false){
-      watchdog("BBB_content_viewer_module","Tried to get info for bad pid:".$pid."---");
+      watchdog("CMV","Content Model Viewer:No info,bad pid---".$pid."---");
       $pid = NULL; 
     }else{
       $item = new fedora_item($pid);
@@ -1451,7 +1451,7 @@ function content_model_viewer_add_object($pid, $type = 'concept') { // Ugly hack
   $postedCodebookId = $_POST['metadata_form_codebook_id']; //I hate this code, can't wait to rewrite in proper submit - RJA 2014-01-30
   if (!empty($postedCodebookId)){
     $_SESSION['codebook_id_for_ingest'] = $postedCodebookId;
-    watchdog("BBB_content_viewer_module","added codebook-id to session:".$_SESSION['codebook_id_for_ingest'].'---');
+    //watchdog("BBB_cmw","added codebook-id to session:".$_SESSION['codebook_id_for_ingest'].'---');
   }
   $run_wizard_meta = ($_POST['uploaded_file_dsid'] == 'OBJ' && $_POST['wizard_check'] == TRUE);
   $form_name_test = $_POST['forms'];
