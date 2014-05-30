@@ -947,10 +947,15 @@ function content_model_viewer_members($pid) {
  *   The PID of the Fedora Object
  */
 function content_model_viewer_treemembers($pid) {
+  if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("f:content_model_viewer_treemembers");
   module_load_include('inc', 'content_model_viewer', 'Tree');
   $node = isset($_GET['node']) ? $_GET['node'] : NULL;
+  if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("c:get_tree");
   $tree = new Tree($pid, $node);
+  if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("c:get_tree","tree constructor");
+  if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("c:print_tree");
   echo $tree->getTree();
+  if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("c:print_tree","tree printing");
   // fields: ['id','text', 'link','pid','leaf','children'],
   /* echo  json_encode(array('data' => array('pid' => 'si:root', 'text' => 'si:root (1)', 'expanded' => true,  'children' => array( */
   /*       array('pid' => 'si:org', 'text' => 'si:organizations (2)'), */
@@ -958,10 +963,12 @@ function content_model_viewer_treemembers($pid) {
   /*     ) */
   /*     )) */
   /* ); */
+  if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("f:content_model_viewer_treemembers","tree callback");
   exit();
 }
 
 function content_model_viewer_treemember($pid) {
+  if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("f:content_model_viewer_treemember");
   module_load_include('inc', 'content_model_viewer', 'Collection');
   module_load_include('inc', 'content_model_viewer', 'Tree');
   $tree = new Tree($pid, $pid . '|||00000');
@@ -973,6 +980,7 @@ function content_model_viewer_treemember($pid) {
   $nodeInfo->parents = array('label' => $label . $count);
 
   echo  json_encode($nodeInfo);
+  if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("f:content_model_viewer_treemember","tree member callback");
   exit();
 }
 
@@ -983,6 +991,7 @@ function content_model_viewer_treemember($pid) {
  *   The PID of the Fedora Object, whose data streams this function will get/set.s
  */
 function content_model_viewer_datastreams($pid, $dsid = NULL) {
+  if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("f:content_model_viewer_datastreams");
   module_load_include('inc', 'content_model_viewer', 'DatastreamProperties');
   switch ($_SERVER['REQUEST_METHOD']) {
     case 'GET':
@@ -990,6 +999,7 @@ function content_model_viewer_datastreams($pid, $dsid = NULL) {
       $datastreams = new DatastreamProperties($pid);
       list($data, $total) = $datastreams->get($_GET['start'], $_GET['limit'], $filter);
       echo json_encode(array('success' => TRUE, 'data' => $data, 'total' => $total));
+      if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("f:content_model_viewer_datastreams","datastream callback, GET");
       exit();
     case 'PUT':
       if ($_SERVER['CONTENT_LENGTH'] > 0) {
@@ -999,6 +1009,7 @@ function content_model_viewer_datastreams($pid, $dsid = NULL) {
         $datastreams = new DatastreamProperties($pid);
         $data = $datastreams->setProperties($dsid, $data);
         echo json_encode(array('success' => TRUE, 'msg' => "Successfully modified $dsid's properties", 'data' => $data));
+        if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("f:content_model_viewer_datastreams","datastrem callback, PUT");
         exit();
       }
       break;
@@ -1832,6 +1843,7 @@ function content_model_viewer_edit_metadata_wizard_form(array &$form_state, $pid
     }
   }
   if ($_SESSION['wizard_finish']){
+    //unset($_SESSION['pid_list']);
     $_SESSION['wizard_finish'] = false;
     $current_pid = NULL;
     $output = NULL;
