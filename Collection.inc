@@ -174,10 +174,10 @@ class Collection {
       minus $model <mulgara:is> <info:fedora/si:conceptCModel>
       minus $model <mulgara:is> <info:fedora/fedora-system:FedoraObject-3.0>
       order by $title';
-    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("f:getTreeMembersQuery");
+    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("c:getTreeMembersQuery");
     $results = $this->query($query);
     if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("c:getTreeMembersQuery","tree member query");
-    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("f:getTreeMembersPop");
+    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("c:getTreeMembersPop");
     $results = $this->populate($results);
     if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("c:getTreeMembersPop","tree member populate");
     if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("f:getTreeMembers","tree member query and populate");
@@ -557,17 +557,25 @@ class Collection {
    */
   private function populate($results, $show_type = FALSE) {
     global $base_url;
+    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("f:populate");
     foreach ($results as &$result) {
       $pid = $result['pid'];
+      if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("c:populate_indiv");
       $type = $this->getType($pid);
       if ($show_type) {
         $result['label'] = "{$type}: {$result['label']}";
         $result['originalMetadata'] = $this->isMetadataOriginal($pid);
       }
+      if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("c:pop_thumbnail");
       $result['tn'] = $this->getThumbnail($pid, $type);
+      if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("c:pop_thumbnail", "thumbnail info for:".$pid);
       $result['link'] = "$base_url/fedora/repository/$pid";
+      if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("c:check_collection");
       $result['isCollection'] = self::isModelCollection($result['model']);
+      if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("c:check_collection", "collection info for:".$pid);
+      if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("c:populate_indiv", "Populated info for:".$pid);
     }
+    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("f:populate","Populated:".count($results));
     return $results;
   }
 
