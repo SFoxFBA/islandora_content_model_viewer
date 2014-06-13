@@ -3,6 +3,8 @@ Ext.require('Ext.container.Viewport');
 Ext.require('Ext.layout.container.Border');
 Ext.require('Ext.tab.Panel');
 Ext.onReady(function () {
+  Ext.Ajax.timeout = 120000; //2 minutes timeout
+  Ext.override(Ext.data.proxy.Ajax, { timeout: 120000 }); 
   // Init system
   ContentModelViewer.setup.initContentArea();
   ContentModelViewer.setup.initExtJSFeatures();
