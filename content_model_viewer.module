@@ -160,6 +160,13 @@ function content_model_viewer_menu() {
     'access arguments' => array(PERM_CONTENT_MODEL_VIEWER_VIEW_OBJECTS),
     'type' => MENU_CALLBACK,
   );
+
+  $items['viewer/upload/%'] = array(
+    'page callback' => 'content_model_viewer_upload',
+    'page arguments' => array(2),
+    'access arguments' => array(PERM_CONTENT_MODEL_VIEWER_ADD_DATASTREAMS),
+    'type' => MENU_CALLBACK,
+  );
   $items['admin/settings/content_model_viewer'] = array(
     'title' => t('Content Model Viewer Settings'),
     'description' => t('Settings for the Content Model Viewer.'),
@@ -187,6 +194,118 @@ function content_model_viewer_menu() {
   return $items;
 }
 
+
+function content_model_viewer_upload($form_id){
+
+//upload for plupload
+// Make sure file is not cached (as it happens for example on iOS devices)
+header("Expires: Mon, 26 Jul 1997 05:00:00 GMT");
+header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
+header("Cache-Control: no-store, no-cache, must-revalidate");
+header("Cache-Control: post-check=0, pre-check=0", false);
+header("Pragma: no-cache");
+
+/* 
+// Support CORS
+header("Access-Control-Allow-Origin: *");
+// other CORS headers if any...
+if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+	exit; // finish preflight CORS requests here
+}
+*/
+
+// 5 minutes execution time
+@set_time_limit(5 * 60);
+
+// Uncomment this one to fake upload time
+// usleep(5000);
+
+// Settings
+$targetDir = file_directory_temp();
+//$targetDir = 'uploads';
+$cleanupTargetDir = false; // Remove old files
+$maxFileAge = 5 * 3600; // Temp file age in seconds
+
+
+// Create target dir
+if (!file_exists($targetDir)) {
+	@mkdir($targetDir);
+}
+
+// Get a file name
+$file_info = new stdClass();
+
+if (isset($_REQUEST["name"])) {
+//	$fileName = $_REQUEST["name"];
+  $file_info->filename = $_REQUEST["name"];
+} elseif (!empty($_FILES)) {
+  $file_info->filename = $_FILES["file"]["name"];
+} 
+
+
+$fileName = uniqid("file_").$file_info->filename;
+/*
+print '----Session----';
+print_r($_SESSION);
+print '----Session END----';
+global $base_path;
+print $base_path;
+*/
+if (isset($_SESSION['file_uploads'])){
+}else{
+}
+$filePath = $targetDir . DIRECTORY_SEPARATOR . $fileName;
+$file_info->filepath = $filePath;//$base_path . 'sites/all' .$filePath;
+$_SESSION['file_uploads'][$form_id][] = $file_info;
+// Chunking might be enabled
+$chunk = isset($_REQUEST["chunk"]) ? intval($_REQUEST["chunk"]) : 0;
+$chunks = isset($_REQUEST["chunks"]) ? intval($_REQUEST["chunks"]) : 0;
+
+// Open temp file
+if (!$out = @fopen("{$filePath}.part", $chunks ? "ab" : "wb")) {
+        die('{"jsonrpc" : "2.0", "error" : {"code": 102, "message": "Failed to open output stream."}, "id" : "id"}');
+}
+
+if (!empty($_FILES)) {
+        if ($_FILES["file"]["error"] || !is_uploaded_file($_FILES["file"]["tmp_name"])) {
+                die('{"jsonrpc" : "2.0", "error" : {"code": 103, "message": "Failed to move uploaded file."}, "id" : "id"}');
+        }
+
+        // Read binary input stream and append it to temp file
+        if (!$in = @fopen($_FILES["file"]["tmp_name"], "rb")) {
+                die('{"jsonrpc" : "2.0", "error" : {"code": 101, "message": "Failed to open input stream."}, "id" : "id"}');
+        }
+} else {
+        if (!$in = @fopen("php://input", "rb")) {
+                die('{"jsonrpc" : "2.0", "error" : {"code": 101, "message": "Failed to open input stream."}, "id" : "id"}');
+        }
+}
+
+while ($buff = fread($in, 4096)) {
+        fwrite($out, $buff);
+}
+
+@fclose($out);
+@fclose($in);
+
+
+
+
+
+
+// Check if file has been uploaded
+if (!$chunks || $chunk == $chunks - 1) {
+        // Strip the temp .part suffix off
+        rename("{$filePath}.part", $filePath);
+}
+
+// Return Success JSON-RPC response
+//print_r ($_SESSION['file_uploads']);
+//die('{"jsonrpc" : "2.0", "result" : null, "id" : "id"}');
+print 'upload complete';
+
+exit();
+}
 /**
  * Implements hook_menu_alter().
  *
@@ -251,10 +370,122 @@ function content_model_viewer_theme() {
       'arguments' => array('pid' => NULL),
       'template' => 'models/Default',
     ),
+    'plupload' => array(
+      'arguments' => array('pid' => NULL),
+    ),
     'content_model_viewer_form_table' => array(
       'arguments' => array('element' => NULL)
     )
   );
+}
+function theme_plupload($elements){
+   ob_start();
+
+
+print '
+<div id="edit-0-wrapper">
+<div id="filelist" ></div>
+<br />
+<!--';
+print_r($elements);
+print implode(",",$elements['#extensions']);
+print '-->
+<div id="container" class="-uploader">
+    <button class="islandora-repo-button" id="pickfiles" href="javascript:;">Upload Files</button> 
+    <a id="uploadfiles" style="display:none;" href="javascript:;">[Upload files]</a>
+</div>
+
+<br />
+<pre id="console"></pre>
+</div>
+
+<script type="text/javascript" src="';
+print base_path().'/'.drupal_get_path('module','content_model_viewer');
+print '/plupload-2.1.2/js/plupload.full.min.js"></script>
+
+<script type="text/javascript">
+function loadjscssfile(filename, filetype){
+ if (filetype=="js"){ //if filename is a external JavaScript file
+  var fileref=document.createElement("script")
+  fileref.setAttribute("type","text/javascript")
+  fileref.setAttribute("src", filename)
+ }
+ else if (filetype=="css"){ //if filename is an external CSS file
+  var fileref=document.createElement("link")
+  fileref.setAttribute("rel", "stylesheet")
+  fileref.setAttribute("type", "text/css")
+  fileref.setAttribute("href", filename)
+ }
+ if (typeof fileref!="undefined")
+  document.getElementsByTagName("head")[0].appendChild(fileref)
+}
+// Custom example logic
+
+var uploader = new plupload.Uploader({
+	runtimes : "html5,flash,silverlight,html4",
+	browse_button : "pickfiles", // you can pass in id...
+	container: document.getElementById("container"), // ... or DOM Element itself
+	url : "';
+print base_path();
+print 'viewer/upload/"+jQuery("#content-model-viewer-ingest-resource-metadata-form").find("input[name=form_build_id]").val(),
+	flash_swf_url : "';
+print base_path();
+print 'sites/all/modules/islandora_content_model_viewer/plupload-2.1.2/js/Moxie.swf",
+	silverlight_xap_url : "';
+print base_path();
+print 'sites/all/modules/islandora_content_model_viewer/plupload-2.1.2/js/Moxie.xap",
+	
+	filters : {
+		max_file_size : "1000mb",
+		mime_types: [
+			{title : "';
+print implode(",",$elements['#extensions']) . ' files';
+print '", extensions : "';
+print implode(",",$elements['#extensions']);
+print '"}
+		]
+	},
+
+	init: {
+		PostInit: function() {
+			document.getElementById("filelist").innerHTML = "";
+
+			document.getElementById("uploadfiles").onclick = function() {
+				uploader.start();
+				return false;
+			};
+		},
+
+		FilesAdded: function(up, files) {
+			plupload.each(files, function(file) {
+                           //alert(file.id+" "+file.name+" "+file.size);
+                           var item = jQuery("<div></div>");
+                           item.attr("id",file.id);
+                           item.html(file.name + "(" + plupload.formatSize(file.size) + ")<b></b>");
+                           jQuery("#filelist").append(item);
+			});
+			uploader.start();
+		},
+
+		UploadProgress: function(up, file) {
+			document.getElementById(file.id).getElementsByTagName("b")[0].innerHTML = "<span>" + file.percent + "%</span>";
+		},
+
+		Error: function(up, err) {
+			document.getElementById("console").innerHTML += "\n" + err.file.name + ": " + err.message;
+			if (err.code == -601) document.getElementById("console").innerHTML += "  Usable extensions are:';
+print implode(",",$elements['#extensions']);
+print '";
+		}
+	}
+});
+
+uploader.init();
+</script>
+
+';
+   $result = ob_get_clean();
+  return $result;
 }
 
 /**
@@ -1457,7 +1688,6 @@ Once user completes the first "edit meta" section, start a new one
   exit();
   
 }
-
 function content_model_viewer_add_object($pid, $type = 'concept') { // Ugly hacks!
   $postedCodebookId = $_POST['metadata_form_codebook_id']; //I hate this code, can't wait to rewrite in proper submit - RJA 2014-01-30
   if (!empty($postedCodebookId)){
@@ -1474,7 +1704,7 @@ function content_model_viewer_add_object($pid, $type = 'concept') { // Ugly hack
     if (!empty($form_name_test)){
       $_SESSION['content_model_form_name'] = $form_name_test;
     }
-    $data = theme('content_model_viewer_metadata_form', $id, $pid, 'wizard-meta');
+    $data = theme('content_model_viewer_metadata_form', $id, $pid, 'wizard-meta'); //goes to content_model_viewer_edit_metadata_wizard_form
   }else{
     unset($_SESSION['pid_list']);
     unset($_SESSION['current_pid']);
