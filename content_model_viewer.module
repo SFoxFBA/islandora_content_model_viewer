@@ -387,8 +387,8 @@ print '
 <div id="filelist" ></div>
 <br />
 <!--';
-print_r($elements);
-print implode(",",$elements['#extensions']);
+//print_r($elements);
+//print implode(",",$elements['#extensions']);
 print '-->
 <div id="container" class="-uploader">
     <button class="islandora-repo-button" id="pickfiles" href="javascript:;">Upload Files</button> 
@@ -400,7 +400,7 @@ print '-->
 </div>
 
 <script type="text/javascript" src="';
-print base_path().'/'.drupal_get_path('module','content_model_viewer');
+print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer');
 print '/plupload-2.1.2/js/plupload.full.min.js"></script>
 
 <script type="text/javascript">
