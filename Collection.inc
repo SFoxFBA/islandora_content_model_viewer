@@ -157,8 +157,8 @@ class Collection {
   }
 
   public function getTreeMembers() {
+    global $base_url;
     if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("f:getTreeMembers");
-
     $child_concepts = 'count(select $concept from <#ri> where
       $object <fedora-rels-ext:hasConcept> $concept and
       $concept <fedora-model:state> <fedora-model:Active>)';
@@ -174,13 +174,54 @@ class Collection {
       minus $model <mulgara:is> <info:fedora/si:conceptCModel>
       minus $model <mulgara:is> <info:fedora/fedora-system:FedoraObject-3.0>
       order by $title';
-    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("c:getTreeMembersQuery");
+    if (module_exists('sidora_performance_monitor'))     sidora_performance_monitor_start("c:getTreeMembersQuery");
     $results = $this->query($query);
     if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("c:getTreeMembersQuery","tree member query");
     if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("c:getTreeMembersPop");
     $results = $this->populate($results);
-    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("c:getTreeMembersPop","tree member populate");
+    //print ('<pre>');
+    //print_r($results);
+    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("c:getTreeMembersPop","tree member populate:".$to_output);
     if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("f:getTreeMembers","tree member query and populate");
+    /*
+    */
+
+    module_load_include('inc', 'fedora_repository', 'api/fedora_item');
+    $item = new Fedora_Item($this->pid);
+    $rels_ext = $item->get_datastream_dissemination('RELS-EXT');
+    $results = array();
+    $lines = explode(":hasConcept rdf:resource=\"info:fedora/",$rels_ext);
+    for ($line_index=1; $line_index < count($lines); $line_index++){
+            $line = $lines[$line_index];
+            if (strpos($line, "</fedora:hasConcept") !== FALSE){
+              $item_parts = explode("\"></fedora:hasConcept>",$line);
+            }else{
+              $item_parts = explode("\"/>",$line);
+            }
+            $item_id = $item_parts[0];
+            $curr_item = new Fedora_Item($item_id);
+            $curr_rels_ext = $curr_item->get_datastream_dissemination('RELS-EXT');
+            $most_recent_model = '';
+            $models = $curr_item->get_model_relationships("");
+            foreach($models as $model){
+              if (
+                $model['object'] != 'si:conceptCModel' &&
+                $model['object'] != 'fedora-system:FedoraObject-3.0'
+              ){
+                $most_recent_model = $model['object'];
+              }
+            }
+	    $curr_result = array();
+	    $curr_result['pid'] = $item_id;
+	    $curr_result['label'] = $curr_item->objectProfile->objLabel;
+	    $curr_result['created'] = $curr_item->objectProfile->objCreatedDate;
+	    $curr_result['model'] = $most_recent_model;
+            $curr_result['relatedCount'] = count($curr_item->get_relationships('hasConcept'));
+	    $curr_result['link'] = "$base_url/fedora/repository/$item_id";
+	    $curr_result['isCollection'] = '0';
+            if (!empty($curr_rels_ext)) $results[] = $curr_result;
+    }
+    $results = $this->populate($results);
     return $results;
   }
 
