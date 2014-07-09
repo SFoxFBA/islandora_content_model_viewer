@@ -210,7 +210,11 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
   },
   loadPid: function (pid) {
     if (typeof (pid) === 'string' && pid.length > 0) {
-      this.store.load({ url: ContentModelViewer.properties.url.object.treemembers(pid) });
+      this.store.load({ 
+          url: ContentModelViewer.properties.url.object.treemembers(pid),
+          success: function (response) {
+          }
+      });
     }
   },
   refreshChildren: function (pid) {
@@ -219,7 +223,9 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
         this.loadPid(pid);
       } else {
         this.store.load({
-          url: ContentModelViewer.properties.url.object.treemembers(pid)
+          url: ContentModelViewer.properties.url.object.treemembers(pid),
+          success: function (response) {
+          }
         });
       }
     }
@@ -267,6 +273,12 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
     }
   },
   listeners: {
+      beforeload: function(tree, eOpts){
+        this.getEl().mask();
+      },
+      load: function(tree, eOpts){
+        this.getEl().unmask();
+      },
     itemmouseup: {
       fn: function (view, record, item, index, event) {
         updateDragIndicatorText();
