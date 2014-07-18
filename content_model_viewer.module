@@ -148,6 +148,12 @@ function content_model_viewer_menu() {
     'access arguments' => array(PERM_CONTENT_MODEL_VIEWER_PURGE_DATASTREAMS),
     'type' => MENU_CALLBACK,
   );
+  $items['viewer/%/%/ids_iframe'] = array(
+    'page callback' => 'content_model_viewer_view_ids_iframe',
+    'page arguments' => array(1, 2),
+    'access arguments' => array(PERM_CONTENT_MODEL_VIEWER_DOWNLOAD_DATASTREAMS),
+    'type' => MENU_CALLBACK,
+  );
   $items['viewer/%/%/download'] = array(
     'page callback' => 'content_model_viewer_download_datastream',
     'page arguments' => array(1, 2),
@@ -1863,6 +1869,75 @@ function content_model_viewer_purge_datastream($pid, $dsid) {
 function content_model_viewer_download_datastream($pid, $dsid) {
   module_load_include('inc', 'content_model_viewer', 'Download');
   download_datastream($pid, $dsid);
+}
+/**
+ * IDS Iframe contents, direct to output, exit() at end
+ *
+ * @param string $pid
+ * @param string $dsid
+ *
+ * @return none
+ */
+function content_model_viewer_view_ids_iframe($pid, $dsid) {
+  print '<html>';
+  print '<head>';
+  print '<script src="';
+  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/jquery-1.9.1.min.js"';
+  print '></script>';
+  print '<script src="';
+  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/jquery-ui-1.9.2.custom.min.js"';
+  print '></script>';
+  print '<script src="';
+  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/jquery.dynatree.min.js"';
+  print '></script>';
+  print '<script src="';
+  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/scrollspy.js"';
+  print '></script>';
+  print '<script src="';
+  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/jquery.jscroll.min.js"';
+  print '></script>';
+  print '<script src="';
+  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/imagesloaded.pkgd.min.js"';
+  print '></script>';
+  print '<script src="';
+  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/masonry.pkgd.min.js"';
+  print '></script>';
+  print '<script src="';
+  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/jquery.ids.js"';
+  print '></script>';
+  print '<script src="';
+  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/seadragon-min.js"';
+  print '></script>';
+/*
+*/
+  print '</head>';
+  print '<body>';
+  print "
+<script>
+$(function(){
+var ids_id = '";
+  print str_replace('https','http',$GLOBALS['base_url']);//.'/'.drupal_get_path('module','content_model_viewer');
+  print "/viewer/$pid/$dsid/download';
+
+var ids__ = jQuery('#containerIDS').ids({
+      idsid: ids_id,
+      idsButtonPath: '";
+  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/buttons/';
+  print "',
+      //container: 'containerIDS',
+      rotation: 0,
+      fullscreen: false,
+      onComplete: function() {
+      },
+    });
+});
+</script>
+<div id='containerIDS' height='100%' width='100%'></div>
+
+";
+  print '</body>';
+  print '</html>';
+  exit();
 }
 
 /**
