@@ -230,6 +230,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
 $targetDir = file_directory_temp();
 //$targetDir = 'uploads';
 $cleanupTargetDir = false; // Remove old files
+$outputDebugCleanup = false;
 $maxFileAge = 5 * 3600; // Temp file age in seconds
 
 
@@ -266,6 +267,35 @@ $_SESSION['file_uploads'][$form_id][] = $file_info;
 // Chunking might be enabled
 $chunk = isset($_REQUEST["chunk"]) ? intval($_REQUEST["chunk"]) : 0;
 $chunks = isset($_REQUEST["chunks"]) ? intval($_REQUEST["chunks"]) : 0;
+
+
+// Remove old temp files
+if ($cleanupTargetDir) {
+      if ($outputDebugCleanup) print 'cleaning up'."\n";
+        if (!is_dir($targetDir) || !$dir = opendir($targetDir)) {
+                die('{"jsonrpc" : "2.0", "error" : {"code": 100, "message": "Failed to open temp directory."}, "id" : "id"}');
+        }
+
+        while (($file = readdir($dir)) !== false) {
+                if ($outputDebugCleanup) print "\n".'checking on file:'.$file;
+                $tmpfilePath = $targetDir . DIRECTORY_SEPARATOR . $file;
+
+                // If temp file is current file proceed to the next
+                if ($tmpfilePath == "{$filePath}.part") {
+                        continue;
+                }
+
+                // Remove temp file if it is older than the max age and is not the current file
+                if (preg_match('/\.part$/', $file) && (filemtime($tmpfilePath) < time() - $maxFileAge)) {
+                        @unlink($tmpfilePath);
+                }else{
+                  if ($outputDebugCleanup) print "\nfilemtime:".filemtime($tmpfilePath).'ok';
+                  if ($outputDebugCleanup) print "\n     time:".time().'ok';
+                  if ($outputDebugCleanup) print "\ndel  time:".(time()-$maxFileAge);
+                }
+        }
+        closedir($dir);
+}
 
 // Open temp file
 if (!$out = @fopen("{$filePath}.part", $chunks ? "ab" : "wb")) {
@@ -308,8 +338,16 @@ if (!$chunks || $chunk == $chunks - 1) {
 // Return Success JSON-RPC response
 //print_r ($_SESSION['file_uploads']);
 //die('{"jsonrpc" : "2.0", "result" : null, "id" : "id"}');
-print 'upload complete';
-
+if ($outputDebugCleanup) {
+  print 'upload complete:'.$filePath;
+  print "\n";
+  print 'full list of files here:';
+  print "\n";
+  $files1 = scandir($targetDir);
+  print_r($files1);
+}else{
+  print 'upload complete';
+}
 exit();
 }
 /**
@@ -427,7 +465,7 @@ function loadjscssfile(filename, filetype){
 }
 
 window.uploader = new plupload.Uploader({
-	runtimes : "html5,flash,silverlight,html4",
+	runtimes : "flash,html5,html4", //No silverlight - gets bad if user does not allow it and it tries to use.
 	browse_button : "pickfiles", // you can pass in id...
 	container: document.getElementById("container"), // ... or DOM Element itself
 	url : "';
@@ -1126,7 +1164,7 @@ function content_model_viewer_metadata_form($pid, $action = 'edit') {
   if ($_POST['wizard_check'] == TRUE && $_POST['form_id'] == 'content_model_viewer_edit_metadata_wizard_form'){
     $data = theme('content_model_viewer_metadata_form', $id, $pid, 'wizard-meta');
   }else{
-    $data = theme('content_model_viewer_metadata_form', $id, $pid, 'edit');
+    $data = theme('content_model_viewer_metadata_form', $id, $pid, 'edit');  //Leads to getting form from: content_model_viewer_edit_metadata_form
   }
   $javascript = drupal_add_js(NULL, NULL, 'header');
   $settings = $javascript['setting'];
@@ -1928,6 +1966,7 @@ var ids__ = jQuery('#containerIDS').ids({
       rotation: 0,
       fullscreen: false,
       onComplete: function() {
+        jQuery('span[title=\"Toggle full page\"]').remove(); //Doesn't make sense to have a fullscreen button on this
       },
     });
 });
@@ -2192,9 +2231,16 @@ function content_model_viewer_edit_metadata_wizard_form_submit(array &$form, arr
  */
 function content_model_viewer_edit_metadata_form_submit(array &$form, array &$form_state) {
   module_load_include('inc', 'islandora_content_model_forms', 'EditObjectMetadataForm');
+  module_load_include('inc', 'content_model_viewer', 'ObjectProperties');
   try {
     $edit_form = new EditObjectMetadataForm();
+    $my_pid = $form['submit']['#post']['pid'];
+    $object_properties = new ObjectProperties($form['submit']['#post']['pid']);
+    $properties = $object_properties->getProperties();
+    $label = $properties['label'];
+    $owner = $properties['owner'];
     $edit_form->submit($form, $form_state);
+    $success = $object_properties->setProperties($label, $owner);
   } catch (Exception $e) {
     $msg = "File: {$e->getFile()}<br/>Line: {$e->getLine()}<br/>Error: {$e->getMessage()}";
     drupal_set_message($msg, 'error');

@@ -150,6 +150,7 @@ ContentModelViewer.setup.defineFunctions = function () {
         toReset.currentPage = 1;
         toReset.start = 0;
       }
+      pid = properties.pids.concept;
       this.loadConcept(pid);
       this.loadResources(pid);
       this.loadViewer(pid);
