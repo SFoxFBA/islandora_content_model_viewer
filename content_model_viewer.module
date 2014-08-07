@@ -2201,10 +2201,17 @@ function content_model_viewer_edit_metadata_wizard_form(array &$form_state, $pid
   }
 }
 function content_model_viewer_edit_metadata_wizard_form_submit(array &$form, array &$form_state) {
+  module_load_include('inc', 'content_model_viewer', 'ObjectProperties');
   module_load_include('inc', 'islandora_content_model_forms', 'EditObjectMetadataForm');
   try {
     $edit_form = new EditObjectMetadataForm();
+    $my_pid = $form['submit']['#post']['pid'];
+    $object_properties = new ObjectProperties($form['submit']['#post']['pid']);
+    $properties = $object_properties->getProperties();
+    $label = $properties['label'];
+    $owner = $properties['owner'];
     $edit_form->submit($form, $form_state);
+    $success = $object_properties->setProperties($label, $owner);
     $pid = $form_state['values']['pid'];
     if (empty($_SESSION['initial_upload'])){
       //this edit form s used to batch create the metadata, and do editing we don't want to initially mark the metadata as edited
