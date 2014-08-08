@@ -148,6 +148,12 @@ function content_model_viewer_menu() {
     'access arguments' => array(PERM_CONTENT_MODEL_VIEWER_PURGE_DATASTREAMS),
     'type' => MENU_CALLBACK,
   );
+  $items['viewer/%/%/ids_iframe'] = array(
+    'page callback' => 'content_model_viewer_view_ids_iframe',
+    'page arguments' => array(1, 2),
+    'access arguments' => array(PERM_CONTENT_MODEL_VIEWER_DOWNLOAD_DATASTREAMS),
+    'type' => MENU_CALLBACK,
+  );
   $items['viewer/%/%/download'] = array(
     'page callback' => 'content_model_viewer_download_datastream',
     'page arguments' => array(1, 2),
@@ -224,6 +230,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
 $targetDir = file_directory_temp();
 //$targetDir = 'uploads';
 $cleanupTargetDir = false; // Remove old files
+$outputDebugCleanup = false;
 $maxFileAge = 5 * 3600; // Temp file age in seconds
 
 
@@ -260,6 +267,35 @@ $_SESSION['file_uploads'][$form_id][] = $file_info;
 // Chunking might be enabled
 $chunk = isset($_REQUEST["chunk"]) ? intval($_REQUEST["chunk"]) : 0;
 $chunks = isset($_REQUEST["chunks"]) ? intval($_REQUEST["chunks"]) : 0;
+
+
+// Remove old temp files
+if ($cleanupTargetDir) {
+      if ($outputDebugCleanup) print 'cleaning up'."\n";
+        if (!is_dir($targetDir) || !$dir = opendir($targetDir)) {
+                die('{"jsonrpc" : "2.0", "error" : {"code": 100, "message": "Failed to open temp directory."}, "id" : "id"}');
+        }
+
+        while (($file = readdir($dir)) !== false) {
+                if ($outputDebugCleanup) print "\n".'checking on file:'.$file;
+                $tmpfilePath = $targetDir . DIRECTORY_SEPARATOR . $file;
+
+                // If temp file is current file proceed to the next
+                if ($tmpfilePath == "{$filePath}.part") {
+                        continue;
+                }
+
+                // Remove temp file if it is older than the max age and is not the current file
+                if (preg_match('/\.part$/', $file) && (filemtime($tmpfilePath) < time() - $maxFileAge)) {
+                        @unlink($tmpfilePath);
+                }else{
+                  if ($outputDebugCleanup) print "\nfilemtime:".filemtime($tmpfilePath).'ok';
+                  if ($outputDebugCleanup) print "\n     time:".time().'ok';
+                  if ($outputDebugCleanup) print "\ndel  time:".(time()-$maxFileAge);
+                }
+        }
+        closedir($dir);
+}
 
 // Open temp file
 if (!$out = @fopen("{$filePath}.part", $chunks ? "ab" : "wb")) {
@@ -302,8 +338,16 @@ if (!$chunks || $chunk == $chunks - 1) {
 // Return Success JSON-RPC response
 //print_r ($_SESSION['file_uploads']);
 //die('{"jsonrpc" : "2.0", "result" : null, "id" : "id"}');
-print 'upload complete';
-
+if ($outputDebugCleanup) {
+  print 'upload complete:'.$filePath;
+  print "\n";
+  print 'full list of files here:';
+  print "\n";
+  $files1 = scandir($targetDir);
+  print_r($files1);
+}else{
+  print 'upload complete';
+}
 exit();
 }
 /**
@@ -421,7 +465,7 @@ function loadjscssfile(filename, filetype){
 }
 
 window.uploader = new plupload.Uploader({
-	runtimes : "html5,flash,silverlight,html4",
+	runtimes : "flash,html5,html4", //No silverlight - gets bad if user does not allow it and it tries to use.
 	browse_button : "pickfiles", // you can pass in id...
 	container: document.getElementById("container"), // ... or DOM Element itself
 	url : "';
@@ -1120,7 +1164,7 @@ function content_model_viewer_metadata_form($pid, $action = 'edit') {
   if ($_POST['wizard_check'] == TRUE && $_POST['form_id'] == 'content_model_viewer_edit_metadata_wizard_form'){
     $data = theme('content_model_viewer_metadata_form', $id, $pid, 'wizard-meta');
   }else{
-    $data = theme('content_model_viewer_metadata_form', $id, $pid, 'edit');
+    $data = theme('content_model_viewer_metadata_form', $id, $pid, 'edit');  //Leads to getting form from: content_model_viewer_edit_metadata_form
   }
   $javascript = drupal_add_js(NULL, NULL, 'header');
   $settings = $javascript['setting'];
@@ -1864,6 +1908,76 @@ function content_model_viewer_download_datastream($pid, $dsid) {
   module_load_include('inc', 'content_model_viewer', 'Download');
   download_datastream($pid, $dsid);
 }
+/**
+ * IDS Iframe contents, direct to output, exit() at end
+ *
+ * @param string $pid
+ * @param string $dsid
+ *
+ * @return none
+ */
+function content_model_viewer_view_ids_iframe($pid, $dsid) {
+  print '<html>';
+  print '<head>';
+  print '<script src="';
+  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/jquery-1.9.1.min.js"';
+  print '></script>';
+  print '<script src="';
+  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/jquery-ui-1.9.2.custom.min.js"';
+  print '></script>';
+  print '<script src="';
+  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/jquery.dynatree.min.js"';
+  print '></script>';
+  print '<script src="';
+  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/scrollspy.js"';
+  print '></script>';
+  print '<script src="';
+  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/jquery.jscroll.min.js"';
+  print '></script>';
+  print '<script src="';
+  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/imagesloaded.pkgd.min.js"';
+  print '></script>';
+  print '<script src="';
+  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/masonry.pkgd.min.js"';
+  print '></script>';
+  print '<script src="';
+  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/jquery.ids.js"';
+  print '></script>';
+  print '<script src="';
+  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/seadragon-min.js"';
+  print '></script>';
+/*
+*/
+  print '</head>';
+  print '<body>';
+  print "
+<script>
+$(function(){
+var ids_id = '";
+  print str_replace('https','http',$GLOBALS['base_url']);//.'/'.drupal_get_path('module','content_model_viewer');
+  print "/viewer/$pid/$dsid/download';
+
+var ids__ = jQuery('#containerIDS').ids({
+      idsid: ids_id,
+      idsButtonPath: '";
+  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/buttons/';
+  print "',
+      //container: 'containerIDS',
+      rotation: 0,
+      fullscreen: false,
+      onComplete: function() {
+        jQuery('span[title=\"Toggle full page\"]').remove(); //Doesn't make sense to have a fullscreen button on this
+      },
+    });
+});
+</script>
+<div id='containerIDS' height='100%' width='100%'></div>
+
+";
+  print '</body>';
+  print '</html>';
+  exit();
+}
 
 /**
  * Renders the viewer for the given datastream ($dsid) from the object identified by $pid.
@@ -2087,10 +2201,17 @@ function content_model_viewer_edit_metadata_wizard_form(array &$form_state, $pid
   }
 }
 function content_model_viewer_edit_metadata_wizard_form_submit(array &$form, array &$form_state) {
+  module_load_include('inc', 'content_model_viewer', 'ObjectProperties');
   module_load_include('inc', 'islandora_content_model_forms', 'EditObjectMetadataForm');
   try {
     $edit_form = new EditObjectMetadataForm();
+    $my_pid = $form['submit']['#post']['pid'];
+    $object_properties = new ObjectProperties($form['submit']['#post']['pid']);
+    $properties = $object_properties->getProperties();
+    $label = $properties['label'];
+    $owner = $properties['owner'];
     $edit_form->submit($form, $form_state);
+    $success = $object_properties->setProperties($label, $owner);
     $pid = $form_state['values']['pid'];
     if (empty($_SESSION['initial_upload'])){
       //this edit form s used to batch create the metadata, and do editing we don't want to initially mark the metadata as edited
@@ -2117,9 +2238,16 @@ function content_model_viewer_edit_metadata_wizard_form_submit(array &$form, arr
  */
 function content_model_viewer_edit_metadata_form_submit(array &$form, array &$form_state) {
   module_load_include('inc', 'islandora_content_model_forms', 'EditObjectMetadataForm');
+  module_load_include('inc', 'content_model_viewer', 'ObjectProperties');
   try {
     $edit_form = new EditObjectMetadataForm();
+    $my_pid = $form['submit']['#post']['pid'];
+    $object_properties = new ObjectProperties($form['submit']['#post']['pid']);
+    $properties = $object_properties->getProperties();
+    $label = $properties['label'];
+    $owner = $properties['owner'];
     $edit_form->submit($form, $form_state);
+    $success = $object_properties->setProperties($label, $owner);
   } catch (Exception $e) {
     $msg = "File: {$e->getFile()}<br/>Line: {$e->getLine()}<br/>Error: {$e->getMessage()}";
     drupal_set_message($msg, 'error');

@@ -176,6 +176,8 @@ class Collection {
 	minus $model <mulgara:is> <info:fedora/si:conceptCModel>
 	minus $model <mulgara:is> <info:fedora/fedora-system:FedoraObject-3.0>
 	order by $title';
+/*
+*/
       if (module_exists('sidora_performance_monitor'))     sidora_performance_monitor_start("c:getTreeMembersQuery");
       $results = $this->query($query);
       if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("c:getTreeMembersQuery","tree member query");
