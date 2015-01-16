@@ -15,11 +15,12 @@ Ext.onReady(function () {
         dsid: config.dsid,
         viewFunction: config.viewFunction
       }));
-      this.add(Ext.create('ContentModelViewer.widgets.FilesPanel', {
-        region: 'east',
-        pid: config.pid,
-        onLoad: this.onLoad
-      }));
+      //DTC-199
+      //this.add(Ext.create('ContentModelViewer.widgets.FilesPanel', {
+      //  region: 'east',
+      //  pid: config.pid,
+      // onLoad: this.onLoad
+      //}));
     },
     title: 'Viewer',
     id: 'viewerpanel',
@@ -29,8 +30,8 @@ Ext.onReady(function () {
     },
     setPid: function (pid) {
       this.pid = pid;
-      var files = this.getComponent('files');
-      files.setPid(pid);
+      //DTC-199 var files = this.getComponent('files');
+      //DTC-199 files.setPid(pid);
     },
     onLoad: function (store, records, successful, operation, eOpts) {
       var record, pid, dsid, viewFunction, i;
@@ -44,7 +45,7 @@ Ext.onReady(function () {
           return;
         }
       }
-      Ext.getCmp('datastream-viewer').update('No Viewer Avaliable');
+    Ext.getCmp('datastream-viewer').update('No Viewer Available');
     }
   });
 });

@@ -11,11 +11,12 @@ Ext.onReady(function () {
       this.pid = config.pid;
       url = (typeof config.url === 'undefined') ? ContentModelViewer.properties.url.object.overview(config.pid) : config.url;
       this.add(this.createContent(url));
-      files = Ext.create('ContentModelViewer.widgets.FilesPanel', {
-        region: 'east',
-        pid: config.pid
-      });
-      this.add(files);
+      //DTC-199
+      //files = Ext.create('ContentModelViewer.widgets.FilesPanel', {
+      //  region: 'east',
+      //  pid: config.pid
+      //});
+      //this.add(files);
     },
     createContent: function (url) {
       var loaded = [];
@@ -108,12 +109,16 @@ Ext.onReady(function () {
     loadEditMetadataContent: function (form_selector, success) {
       this.loadContent(ContentModelViewer.properties.url.object.metadata_form(this.pid), this.getFormParams(form_selector), success);
     },
+    //SFOX DTC-148
+    loadPublishMetadataContent: function (form_selector, success) {
+      this.loadContent(ContentModelViewer.properties.url.object.publish_form(this.pid), this.getFormParams(form_selector), success);
+    },
     setPid: function (pid) {
       this.pid = pid;
       this.refresh();
     },
     refresh: function () {
-      this.getComponent('files').setPid(this.pid);
+      //DTC-199 this.getComponent('files').setPid(this.pid);
       this.loadContent(ContentModelViewer.properties.url.object.overview(this.pid));
     },
     itemId: 'overview',
