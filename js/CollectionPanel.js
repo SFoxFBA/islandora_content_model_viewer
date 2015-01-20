@@ -7,8 +7,9 @@ Ext.onReady(function () {
     deferEmptyText: false,
     deferInitialRefresh: false,
     mixins: {
-      dragSelector: 'Ext.ux.DataView.DragSelector',
-      draggable: 'Ext.ux.DataView.Draggable'
+            //SFOX disable drag n drop for now
+            //dragSelector: 'Ext.ux.DataView.DragSelector',
+            //draggable: 'Ext.ux.DataView.Draggable'
     },
     itemTpl: new Ext.XTemplate(
       '<tpl for=".">',
@@ -47,12 +48,13 @@ Ext.onReady(function () {
     ),
     initComponent: function() {
       var me = this;
-      this.mixins.dragSelector.init(this);
-      this.mixins.draggable.init(this, {
-        ddConfig: {
-          ddGroup: 'cmvDDGroup'
-        }
-      });
+            //SFOX disable drag n drop for now
+            //this.mixins.dragSelector.init(this);
+            //this.mixins.draggable.init(this, {
+            //    ddConfig: {
+            //        ddGroup: 'cmvDDGroup'
+            //    }
+            //});
       this.callParent();
     },
     listeners: {

@@ -29,10 +29,11 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
   id: 'cmvtreepanel',
   viewConfig : {
     selectedItemCls : "even",
-    plugins: {
-      ptype: 'treeviewdragdrop',
-     ddGroup: 'cmvDDGroup'
-    },
+        // plugins : {
+            //SFOX disable drag n drop for now
+            //ptype: 'treeviewdragdrop',
+            //ddGroup: 'cmvDDGroup',
+        //},
     listeners: {
       itemmousedown: {
         fn: function (view, record, item, index, event) {
@@ -44,22 +45,29 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
       beforedrop: {
         fn: function(node, data, overModel, dropPos, opts) {
           //Get the current user selection so that it can be reapplied after the tree changes (which deselects)
-          var isDraggingResources = true;
-          var isDraggingConcepts = false;
+                    //SFOX disable drag n drop for now
+                    //var isDraggingResources = true;
+                    //var isDraggingConcepts = false;
           var userSelectionStorage = Ext.getCmp('cmvtreepanel').getSelectionModel().getSelection();
           var userSelectionStorageParent = null;
           if (userSelectionStorage.length > 0){
             userSelectionStorageParent = userSelectionStorage[0].parentNode;
           }
-          var dropPid = overModel.get('pid');
+                    //SFOX disable drag n drop for now
+                    //var dropPid = overModel.get('pid');
           var resourcePids = getSelected();
           var conceptPids = getTreeSelected();
-          var trueDraggedPid = data.records[0].data.pid;
+                    //SFOX disable drag n drop for now
+                    //var trueDraggedPid = data.records[0].data.pid;
           //if the trueDraggedPid is in the resourcePids, then it's a resource to tree drag, otherwise it's a tree to tree drag
-          var dragPids = resourcePids;
+                    //SFOX disable drag n drop for now
+                    //var dragPids = resourcePids;
           var parentPids = ContentModelViewer.properties.pids.concept;
-          var draggedTypeName = "resource(s)";
+                    //SFOX disable drag n drop for now
+                    //var draggedTypeName = "data component(s)";
           var additionalMessage = "";
+                    //SFOX disable drag n drop for now
+/*                    
           if (resourcePids.indexOf(trueDraggedPid) == -1){
              isDraggingConcepts = true;
              isDraggingResources = false;
@@ -74,12 +82,12 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
                   if (sthpdti != 0) conceptNamesList += ", ";
                   conceptNamesList += Ext.getCmp('cmvtreepanel').getNodesByPid(selectedThatHaveParentAsDropTarget[sthpdti])[0].get('text');
                } 
-               /*
-               Ext.Msg.alert(
-                 'Dragged to current parent',
-                 'The following concepts:' + conceptNamesList + ' already have ' + Ext.getCmp('cmvtreepanel').getNodesByPid(dropPid)[0].get('text') + ' as a parent and do not need to be associated again'
-               );
-               */
+                            //
+                             //Ext.Msg.alert(
+                             //'Dragged to current parent',
+                             //'The following concepts:' + conceptNamesList + ' already have ' + Ext.getCmp('cmvtreepanel').getNodesByPid(dropPid)[0].get('text') + ' as a parent and do not need to be associated again'
+                             //);
+                             //
                //ExtJS is not set up to have multiple alerts per user action, so couldn't easily set up what Beth wanted with an alert before the move wording.
                additionalMessage = 'The following concepts:' + conceptNamesList + ' already have ' + Ext.getCmp('cmvtreepanel').getNodesByPid(dropPid)[0].get('text') + ' as a parent and do not need to be associated again.<br/><br/>';
                dragPids = getTreeSelected(false,dropPid);
@@ -153,6 +161,7 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
               }
             });
           }
+*/                    
           //Set the selection:
           Ext.getCmp('cmvtreepanel').getSelectionModel().select(userSelectionStorageParent);
           Ext.getCmp('cmvtreepanel').getSelectionModel().select(userSelectionStorage);
@@ -281,7 +290,8 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
       },
     itemmouseup: {
       fn: function (view, record, item, index, event) {
-        updateDragIndicatorText();
+                //SFOX disable drag n drop for now
+                //updateDragIndicatorText();
         if (!window.modifierKeysHeld.ctrl){
           //Would like to remove sidoraTreeMultiSelect from all, but this gets fired before
           //the drop item, so if you remove the class here then drop item won't get it.
@@ -343,7 +353,8 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
             }
             if (resetMultiSelect) jQuery(".sidoraTreeMultiSelect").removeClass("sidoraTreeMultiSelect");
           }
-          updateDragIndicatorText();
+                    //SFOX disable drag n drop for now
+                    //updateDragIndicatorText();
         }
           var pid = record.get('pid');
           if (record.data.id === 'root') {

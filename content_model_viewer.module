@@ -1012,8 +1012,9 @@ function content_model_viewer_iframe($pid = NULL) {
   drupal_add_js($js_path . '/CollectionPanel.js');
   drupal_add_js($js_path . '/TreePanel.js');
   drupal_add_js($js_path . '/ContentModelViewer.js');
-  drupal_add_js($js_path . '/extjs_plugins/ux/DataView/DragSelector.js');
-  drupal_add_js($js_path . '/extjs_plugins/ux/DataView/Draggable.js');
+//SFOX Disable drag n drop for now
+//  drupal_add_js($js_path . '/extjs_plugins/ux/DataView/DragSelector.js');
+//  drupal_add_js($js_path . '/extjs_plugins/ux/DataView/Draggable.js');
   drupal_add_css($path . '/css/ContentModelViewer.css');
   //Going to be disabling this InitialDisplay via javascript, so don't aggregate it */
   drupal_add_css($path . '/css/ContentModelViewerInitialDisplay.css', 'module', 'all', FALSE);
