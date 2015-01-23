@@ -42,13 +42,8 @@ class BasicImageViewer extends AbstractViewer {
    */
   public function render($pid, $dsid) {
     global $base_url;
-    $url = $base_url . '/viewer/' . $pid . '/' . $dsid . '/ids_iframe';
-    
-    return "<iframe height='100%' width='100%' src='$url'></iframe>";
-    //return "<iframe height='100%' width='100%' src='http://ids.si.edu/ids/dynamic?id=".str_replace('https','http',$url)."'></iframe>";
-    //return "<img src='http://ids.si.edu/ids/deliveryService?id=".str_replace('https','http',$url)."'/>";
-    //return "<img src='https://ids.si.edu/ids/deliveryService?id=http://workbench.sidora.si.edu/sites/all/themes/smithsonian-theme/logo.png'/>";
-    //return "<iframe src='https://ids.si.edu/ids/dynamic?id=http://workbench.sidora.si.edu/sites/all/themes/smithsonian-theme/logo.png'></iframe>";
+    $url = $base_url . '/viewer/' . $pid . '/' . $dsid . '/download';
+    return "<img src='$url'/>";
   }
 
 }

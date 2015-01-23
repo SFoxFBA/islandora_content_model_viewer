@@ -550,6 +550,7 @@ class Collection {
    * @return boolean
    */
   private function date_newest_sort($a, $b) {
+    date_default_timezone_set('Europe/London'); //SFOX added this to stop php error
     $a = strtotime($a['created']);
     $b = strtotime($b['created']);
     if ($a == $b) {

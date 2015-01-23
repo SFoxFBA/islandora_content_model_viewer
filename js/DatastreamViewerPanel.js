@@ -30,7 +30,7 @@ Ext.onReady(function () {
     view: function (pid, dsid, viewFunction) {
       console.log("DatastreamViewerPanel view");
       if (window.bm){
-        jQuery("button:contains('Resource Overview')").click();        
+        jQuery("button:contains('Data Components')").click();        
         return; //Temporarily disable the viewer during the batch metadata (so images don't show up at beginning)
       }
       var viewerPanel = this.findParentByType('viewerpanel');

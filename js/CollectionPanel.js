@@ -13,26 +13,27 @@ Ext.onReady(function () {
     },
     itemTpl: new Ext.XTemplate(
       '<tpl for=".">',
-      ' <tpl if="originalMetadata">',
+        //SFOX Removed the Original Metadata tick/exclamation mark for now
+        //        ' <tpl if="originalMetadata">',
       '   <div class="member-item">',
-      '    <span class="incompleteMeta" title="Metadata incomplete"></span>',
+        //        '    <span class="incompleteMeta" title="Metadata incomplete"></span>',
       '    <input class="resourceBatchSelector" type="checkbox" style="display:none;float:left;height:100%" name="{pid}"/>',
       '    <span style="float:left;text-align:center">',
       '     <img class="member-item-img" src="{tn}"></img>',
       '    </span>',
       '    <div class="member-item-label">{label}</div>',
       '   </div>',
-      ' </tpl>',
-      ' <tpl if="!originalMetadata">',
-      '   <div class="member-item">',
-      '    <span class="completeMeta" title="Metadata complete"></span>',
-      '    <input class="resourceBatchSelector" type="checkbox" style="display:none;float:left;height:100%" name="{pid}"/>',
-      '    <span style="float:left;text-align:center">',
-      '     <img class="member-item-img" src="{tn}"></img>',
-      '    </span>',
-      '    <div class="member-item-label">{label}</div>',
-      '   </div>',
-      ' </tpl>',
+        //        ' </tpl>',
+        //        ' <tpl if="!originalMetadata">',
+        //        '   <div class="member-item">',
+         //       '    <span class="completeMeta" title="Metadata complete"></span>',
+        //        '    <input class="resourceBatchSelector" type="checkbox" style="display:none;float:left;height:100%" name="{pid}"/>',
+        //        '    <span style="float:left;text-align:center">',
+        //        '     <img class="member-item-img" src="{tn}"></img>',
+        //        '    </span>',
+        //        '    <div class="member-item-label">{label}</div>',
+        //        '   </div>',
+        //        ' </tpl>',
       '</tpl>',
       {
         compiled: true,
@@ -143,7 +144,7 @@ Ext.onReady(function () {
     extend: 'Ext.panel.Panel',
     id: 'collectionpanel',
     itemId: 'collection',
-    title: 'Resources',
+        title: 'Data Components',
     constructor: function (config) {
       this.callParent(arguments);
       this.add(Ext.create('ContentModelViewer.widgets.CollectionDataView', { pid: config.pid }));
@@ -436,7 +437,7 @@ function BatchMetadata(){
     });
   }
   this.cancel = function(){
-    jQuery("button:contains('Resources')").click();
+        jQuery("button:contains('Data Components')").click();
     ContentModelViewer.functions.refreshResources();
     this.isDisplayingFinal = false;
   }
@@ -457,7 +458,7 @@ function BatchMetadata(){
   this.displayPid = function(currId){
     var resOver = Ext.getCmp('cmvtabpanel').getComponent('resource-overview');
     resOver.pid = currId;
-    jQuery("button:contains('Resource Overview')").click();
+        jQuery("button:contains('Data Components')").click();
     var theBmDriver = this;
     resOver.loadContent(
       Drupal.settings.basePath+"viewer/"+currId+"/metadata_form"
@@ -513,22 +514,22 @@ function BatchMetadata(){
 	//The non-cancel "cancels"
 	jQuery("button:contains('Manage')").click(function(){
 	  //console.log("cancelling batch metadata - manage clicked");
-	  jQuery("#resource-metadata-form").text("Batch Metadata cancelled. Select a resource on the Resources tab to load information.")
+            jQuery("#resource-metadata-form").text("Batch Metadata cancelled. Select a data component on the Data Component tab to load information.")
 	  window.bm = null;
 	});
 	jQuery("button:contains('Viewer')").click(function(){
 	  //console.log("cancelling batch metadata - viewer clicked");
-	  jQuery("#resource-metadata-form").text("Batch Metadata cancelled. Select a resource on the Resources tab to load information.")
+            jQuery("#resource-metadata-form").text("Batch Metadata cancelled. Select a data component on the Data Component tab to load information.")
 	  window.bm = null;
 	});
 	jQuery("button:contains('Concept Overview')").click(function(){
 	  //console.log("cancelling batch metadata - concept overview clicked");
-	  jQuery("#resource-metadata-form").text("Batch Metadata cancelled. Select a resource on the Resources tab to load information.")
+            jQuery("#resource-metadata-form").text("Batch Metadata cancelled. Select a data component on the Data Component tab to load information.")
 	  window.bm = null;
 	});
-	jQuery("button:contains('Resources')").click(function(){
+        jQuery("button:contains('Data Components')").click(function () {
 	  //console.log("cancelling batch metadata - resources clicked");
-	  jQuery("#resource-metadata-form").text("Batch Metadata cancelled. Select a resource on the Resources tab to load information.")
+            jQuery("#resource-metadata-form").text("Batch Metadata cancelled. Select a data component on the Data Component tab to load information.")
 	  window.bm = null;
 	});
   }

@@ -35,6 +35,7 @@ Ext.onReady(function () {
     },
     onLoad: function (store, records, successful, operation, eOpts) {
       var record, pid, dsid, viewFunction, i;
+      if (record) { //SFOX added this line
       for (i = 0; i < records.length; i += 1) {
         record = records[i];
         if (record.get('default')) {
@@ -45,6 +46,7 @@ Ext.onReady(function () {
           return;
         }
       }
+    }
     Ext.getCmp('datastream-viewer').update('No Viewer Available');
     }
   });

@@ -175,7 +175,7 @@ ContentModelViewer.setup.defineFunctions = function () {
       // Create the panel and insert it in the first position if it doesn't exist.
       if (!overview && typeof ContentModelViewer.widgets.OverviewPanel !== 'undefined') {
         tabpanel.insert(0, Ext.create('ContentModelViewer.widgets.OverviewPanel', {
-          title: 'Concept Overview',
+                    title: 'Overview', //SFOX altered this to remove the word concept
           itemId: 'concept-overview',
           pid: pid
         }));
@@ -188,12 +188,14 @@ ContentModelViewer.setup.defineFunctions = function () {
       var tabpanel, overview;
       tabpanel = Ext.getCmp('cmvtabpanel');
       overview = tabpanel.getComponent('resource-overview');
-      prop = prop || { pid: properties.pids.resource };
+            prop = prop || {
+                pid: properties.pids.resource
+            };
       prop.pid = prop.pid !== undefined ? prop.pid : properties.pids.resource;
       // Create the panel and insert it in the first position if it doesn't exist.
       if (!overview && typeof ContentModelViewer.widgets.OverviewPanel !== 'undefined') {
         tabpanel.insert(2, Ext.create('ContentModelViewer.widgets.OverviewPanel', {
-          title: 'Resource Overview',
+                    title: 'Data Component',
           itemId: 'resource-overview',
           pid: prop.pid,
           url: prop.url
@@ -401,7 +403,7 @@ ContentModelViewer.setup.defineFunctions = function () {
         if (!resourceOverview) { // Create
           index = properties.isCollection ? 2 : 1;
           tabpanel.insert(index, Ext.create('ContentModelViewer.widgets.OverviewPanel', {
-            title: 'Resource Overview',
+                        title: 'Data Components',
             itemId: 'resource-overview',
             pid: pid
           }));
