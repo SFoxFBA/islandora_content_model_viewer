@@ -104,6 +104,7 @@ ContentModelViewer.setup.initProperties = function () {
       datastreams: url_replace_pid_func('#object_datastreams_url'),
       permission_form: url_replace_pid_func('#object_permission_form_url'),
       metadata_form: url_replace_pid_func('#object_metadata_form_url'),
+            publish_form: url_replace_pid_func('#object_publish_form_url'), //SFOX DTC-148
       members: url_replace_pid_func('#object_members_url'),
       treemembers: url_replace_pid_func('#object_treemembers_url'),
       treemember: url_replace_pid_func('#object_treemember_url'),
@@ -123,280 +124,311 @@ ContentModelViewer.setup.initProperties = function () {
 /**
  * Defines functions to be used by the Content Model Viewer.
  */
-ContentModelViewer.setup.defineFunctions = function () {
-  var properties, url;
-  properties = ContentModelViewer.properties;
-  url = properties.url;
-  ContentModelViewer.functions = {
-    /**
-     * Download Datastream using hidden html form that is rendered with the Viewer.tpl.php
-     */
-    downloadDatastream: function (pid, dsid) {
-      var form = Ext.get("datastream-download-form");
-      form.set({
-        action: url.datastream.download(pid, dsid)
-      });
-      document.forms["datastream-download-form"].submit();
-    },
-    // Shows a Collection, triggered by selecting a parent in the concept/resource overview, or by selecting a item in the treepanel. Can't hide a collection.
-    selectConcept: function (pid, closeResourceTab) {
-      closeResourceTab = (typeof closeResourceTab === 'undefined') ? true : closeResourceTab;
-      properties.pids.concept = pid || properties.pids.concept;
-      if (closeResourceTab) { // Don't need to hide the resource if the concept was selected from the resource overview panel
-        this.closeResource();
-      }
-      if (Ext.getCmp('collectionpanel')){
-        var toReset = Ext.getCmp('collectionpanel').getComponent('collectiondataview').store;
-        toReset.currentPage = 1;
-        toReset.start = 0;
-      }
-      pid = properties.pids.concept;
-      this.loadConcept(pid);
-      this.loadResources(pid);
-      this.loadViewer(pid);
-      this.loadManage(pid);
-      this.showConcept();
-    },
-    // The user has selected a resource.
-    selectResource: function (pid) {
-      properties.pids.resource = pid;
-      this.loadResource();
-      this.loadViewer(pid);
-      this.loadManage(pid);
-      this.showResource();
-      // TODO handle the auto focus of viewer if possible or resource overview if not.
-    },
-    // Shows the concept in its overview panel, creates the panel if it doesn't already exist. If no pid is give it just refreshes
-    loadConcept: function (pid) {
-      var tabpanel, overview;
-      tabpanel = Ext.getCmp('cmvtabpanel');
-      overview = tabpanel.getComponent('concept-overview');
-      pid = pid || properties.pids.concept;
-      // Create the panel and insert it in the first position if it doesn't exist.
-      if (!overview && typeof ContentModelViewer.widgets.OverviewPanel !== 'undefined') {
-        tabpanel.insert(0, Ext.create('ContentModelViewer.widgets.OverviewPanel', {
+ContentModelViewer.setup.defineFunctions = function() {
+    var properties, url;
+    properties = ContentModelViewer.properties;
+    url = properties.url;
+    ContentModelViewer.functions = {
+        /**
+         * Download Datastream using hidden html form that is rendered with the Viewer.tpl.php
+         */
+        downloadDatastream: function(pid, dsid) {
+            var form = Ext.get("datastream-download-form");
+            form.set({
+                action: url.datastream.download(pid, dsid)
+            });
+            document.forms["datastream-download-form"].submit();
+        },
+        // Shows a Collection, triggered by selecting a parent in the concept/resource overview, or by selecting a item in the treepanel. Can't hide a collection.
+        selectConcept: function(pid, closeResourceTab) {
+            closeResourceTab = (typeof closeResourceTab === 'undefined') ? true : closeResourceTab;
+            properties.pids.concept = pid || properties.pids.concept;
+            if (closeResourceTab) { // Don't need to hide the resource if the concept was selected from the resource overview panel
+                this.closeResource();
+            }
+            var cp = Ext.getCmp('collectionpanel');
+            if (Ext.getCmp('collectionpanel')) {
+                var toReset = Ext.getCmp('collectionpanel').getComponent('collectiondataview').store;
+                toReset.currentPage = 1;
+                toReset.start = 0;
+            }
+            pid = properties.pids.concept;
+            this.loadConcept(pid);
+            //DTC-157 SFOX hide resource tab for non datasets
+            var pidsearch;
+            pidsearch = pid.search("dtcds:");
+            if (pidsearch == -1) {
+                var tabpanel, overview;
+                tabpanel = Ext.getCmp('cmvtabpanel');
+                overview = tabpanel.getComponent('collection');
+                if (typeof overview != "undefined") {
+                    overview.close();
+                }
+            } else {
+                this.loadResources(pid);
+            }//DTC-157 SFOX 
+
+            //SFOX DTC-161 this.loadViewer(pid);
+            this.loadManage(pid);
+            this.showConcept();
+        },
+        // The user has selected a resource.
+        selectResource: function(pid) {
+            properties.pids.resource = pid;
+            this.loadResource();
+            //SFOX this.loadViewer(pid);
+            this.loadManage(pid);
+            this.showResource();
+            // TODO handle the auto focus of viewer if possible or resource overview if not.
+        },
+        // Shows the concept in its overview panel, creates the panel if it doesn't already exist. If no pid is give it just refreshes
+        loadConcept: function(pid) {
+            var tabpanel, overview;
+            tabpanel = Ext.getCmp('cmvtabpanel');
+            overview = tabpanel.getComponent('concept-overview');
+            pid = pid || properties.pids.concept;
+            // Create the panel and insert it in the first position if it doesn't exist.
+            if (!overview && typeof ContentModelViewer.widgets.OverviewPanel !== 'undefined') {
+                tabpanel.insert(0, Ext.create('ContentModelViewer.widgets.OverviewPanel', {
                     title: 'Overview', //SFOX altered this to remove the word concept
-          itemId: 'concept-overview',
-          pid: pid
-        }));
-      } else if (overview) {
-        overview.setPid(pid);
-      }
-    },
-    // Shows a Resource, has no effect on the Current Collection, Focus Viewer and Manage panels on the Resource. If pid is null display the add form.
-    loadResource: function (prop) {
-      var tabpanel, overview;
-      tabpanel = Ext.getCmp('cmvtabpanel');
-      overview = tabpanel.getComponent('resource-overview');
+                    itemId: 'concept-overview',
+                    pid: pid
+                }));
+            } else if (overview) {
+                overview.setPid(pid);
+            }
+        },
+        // Shows a Resource, has no effect on the Current Collection, Focus Viewer and Manage panels on the Resource. If pid is null display the add form.
+        loadResource: function(prop) {
+            var tabpanel, overview;
+            tabpanel = Ext.getCmp('cmvtabpanel');
+            overview = tabpanel.getComponent('resource-overview');
             prop = prop || {
                 pid: properties.pids.resource
             };
-      prop.pid = prop.pid !== undefined ? prop.pid : properties.pids.resource;
-      // Create the panel and insert it in the first position if it doesn't exist.
-      if (!overview && typeof ContentModelViewer.widgets.OverviewPanel !== 'undefined') {
-        tabpanel.insert(2, Ext.create('ContentModelViewer.widgets.OverviewPanel', {
+            prop.pid = prop.pid !== undefined ? prop.pid : properties.pids.resource;
+            // Create the panel and insert it in the first position if it doesn't exist.
+            if (!overview && typeof ContentModelViewer.widgets.OverviewPanel !== 'undefined') {
+                tabpanel.insert(2, Ext.create('ContentModelViewer.widgets.OverviewPanel', {
                     title: 'Data Component',
-          itemId: 'resource-overview',
-          pid: prop.pid,
-          url: prop.url
-        }));
-      } else if (overview) {
-        overview.setPid(prop.pid);
-      }
-    },
-    // Hides the Resource Panel changes the focus of the
-    closeResource: function () {
-      var overview = Ext.getCmp('cmvtabpanel').getComponent('resource-overview');
-      properties.pids.resource = undefined;
-      if (overview) {
-        overview.close();
-      }
-    },
-    // Display the collection panel with all of the given concepts resources.
-    loadResources: function (pid) {
-      var resources = Ext.getCmp('collectionpanel');
-      pid = pid || properties.pids.concept;
-      // Create the panel and insert it in the after the Concept Overview if it doesn't exist.
-      if (!resources && typeof ContentModelViewer.widgets.CollectionPanel !== 'undefined') {
-        Ext.getCmp('cmvtabpanel').insert(1, Ext.create('ContentModelViewer.widgets.CollectionPanel', {
-          pid: pid
-        }));
-      } else if (resources) {
-        resources.setPid(pid); // The Collection panel should show the resources of the given concept.
-      }
-    },
-    // Display the viewer
-    loadViewer: function (pid) {
-      var panel, dsid, viewFunction;
-      panel = Ext.getCmp('viewerpanel');
-      // @TODO get the rest of the params
-      // Create the panel and insert it in the first position if it doesn't exist.
-      if (!panel && typeof ContentModelViewer.widgets.ViewerPanel !== 'undefined') {
-        Ext.getCmp('cmvtabpanel').add(Ext.create('ContentModelViewer.widgets.ViewerPanel', {
-          pid: pid,
-          dsid: dsid,
-          viewFunction: viewFunction
-        }));
-      } else if (panel) {
-        panel.setPid(pid);
-      }
-    },
-    loadManage: function (pid) {
-      var panel = Ext.getCmp('managepanel');
-      // Create the panel and insert it in the last position if it doesn't exist.
-      if (!panel && typeof ContentModelViewer.widgets.ManagePanel !== 'undefined') {
-        Ext.getCmp('cmvtabpanel').add(Ext.create('ContentModelViewer.widgets.ManagePanel', {
-          pid: pid
-        }));
-      } else if (panel) {
-        panel.setPid(pid);
-      }
-    },
-    loadAddResourceForm: function () {
-      var cmv, overview, url, form_selector, success, data;
-      cmv = this;
-      overview = Ext.getCmp('cmvtabpanel').getComponent('resource-overview');
-      url = ContentModelViewer.properties.url.object.add(ContentModelViewer.properties.pids.concept, 'resource');
-      form_selector = '#add-resource-form form';
-      success = function (loader, response, options) {
-        if (typeof response.responseText !== 'undefined') {
-          data = JSON.parse(response.responseText);
-          if (data.refresh) {
-            cmv.refreshTreeNodes(ContentModelViewer.properties.pids.concept); // Update the number in the tree
-            cmv.selectResource(data.refresh); // Should be newly created object.
-            cmv.refreshResources(); // Show object in page if possible.
-          }
-        }
-      };
-      if (!overview) {
-        this.loadResource({ url: url });
-      } else {
-        overview.loadAddObjectContent(url, form_selector, success);
-      }
-      this.showResource();
-    },
-    loadAddConceptForm: function () {
-      var cmv, data, url;
-      url = ContentModelViewer.properties.url.object.add(ContentModelViewer.properties.pids.concept, 'concept');
-      cmv = this;
-      Ext.getCmp('cmvtabpanel').getComponent('concept-overview').loadAddObjectContent(url, '#add-concept-form form', function (loader, response, options) {
-        if (typeof response.responseText !== 'undefined') {
-          data = JSON.parse(response.responseText);
-          if (data.refresh) {
-            cmv.refreshTreeNodes(ContentModelViewer.properties.pids.concept); // Update the object we were previously on
-            cmv.selectConcept(data.refresh); // Should be newly created object.
-          }
-        }
-      });
-    },
-    loadResourceEditMetadataForm: function () {
-      var cmv, data;
-      cmv = this;
-      Ext.getCmp('cmvtabpanel').getComponent('resource-overview').loadEditMetadataContent('#resource-metadata-form form', function (loader, response, options) {
-        if (typeof response.responseText !== 'undefined') {
-          data = JSON.parse(response.responseText);
-          if (data.refresh) {
-            cmv.refreshResource();
-            cmv.refreshResources();
-            cmv.refreshTreeNodes(ContentModelViewer.properties.pids.concept); // Update the object we were previously on
-          }
-        }
-      });
-    },
-    loadConceptEditMetadataForm: function () {
-      var cmv, data;
-      cmv = this;
-      Ext.getCmp('cmvtabpanel').getComponent('concept-overview').loadEditMetadataContent('#concept-metadata-form form', function (loader, response, options) {
-        if (typeof response.responseText !== 'undefined') {
-          data = JSON.parse(response.responseText);
-          if (data.refresh) {
-            cmv.refreshTreeNodes(data.refresh);
-          }
-        }
-      });
-    },
-    //
-    loadResourceEditPermissionForm: function () {
-      Ext.getCmp('cmvtabpanel').getComponent('resource-overview').loadEditPermissionContent('#resource-permission-form form');
-    },
-    //
-    loadConceptEditPermissionForm: function () {
-      Ext.getCmp('cmvtabpanel').getComponent('concept-overview').loadEditPermissionContent('#concept-permission-form form');
-    },
-    //
-    refreshConcept: function () {
-      var panel = Ext.getCmp('cmvtabpanel').getComponent('concept-overview');
-      if (panel) {
-        panel.refresh();
-      }
-    },
-    //
-    refreshResource: function () {
-      var panel = Ext.getCmp('cmvtabpanel').getComponent('resource-overview');
-      if (panel) {
-        if (properties.pids.resource !== undefined) {
-          panel.refresh();
-        } else {
-          this.closeResource();
-          this.showConcept();
-        }
-      }
-    },
-    //
-    refreshResources: function () {
-      Ext.getCmp('collectionpanel').refresh();
-    },
-    refreshTreeNodes: function (pid) {
-      Ext.getCmp('cmvtreepanel').refreshNodes(pid);
-    },
-    // Reloads the tree data.
-    refreshTree: function (pid) {
-      Ext.getCmp('cmvtreepanel').refreshChildren(pid);
-    },
-    refreshTreeParents: function (pid) {
-      Ext.getCmp('cmvtreepanel').refreshParents(pid);
-    },
-    //
-    showConcept: function () {
-      var tabpanel, panel;
-      tabpanel = Ext.getCmp('cmvtabpanel');
-      panel = tabpanel.getComponent('concept-overview');
-      if (panel) {
-        Ext.getCmp('cmvtabpanel').setActiveTab(panel);
-      }
-    },
-    //
-    showResource: function () {
-      var tabpanel, panel;
-      tabpanel = Ext.getCmp('cmvtabpanel');
-      panel = tabpanel.getComponent('resource-overview');
-      if (panel) {
-        tabpanel.setActiveTab(panel);
-      }
-    },
-    //
-    showViewer: function () {
-      console.log("showViewer");
-      var panel = Ext.getCmp('viewerpanel');
-      if (panel) {
-        Ext.getCmp('cmvtabpanel').setActiveTab(panel);
-        // TODO set the default view datastream? or do so in the load function?
-      }
-    },
-    // Olderstuff
-    // This pid determines whats shown in the tree and if the ConceptOverview is shown
-    setCollectionPid: function (pid) {
-      var collection = Ext.getCmp('collectionpanel');
-      properties.pids.collection = pid;
-      collection.setPid(pid);
-    },
-    // Determines whats shown in viewer/manage
-    setFocusedPid: function (pid, isCollection) {
-      var viewer = Ext.getCmp('viewerpanel'),
-        manage = Ext.getCmp('managepanel'),
-        tabpanel = Ext.getCmp('cmvtabpanel'),
-        resourceOverview = tabpanel.getComponent('resource-overview'),
-        index;
+                    itemId: 'resource-overview',
+                    pid: prop.pid,
+                    url: prop.url
+                }));
+            } else if (overview) {
+                overview.setPid(prop.pid);
+            }
+        },
+        // Hides the Resource Panel changes the focus of the
+        closeResource: function() {
+            var tabpanel, overview;
+            tabpanel = Ext.getCmp('cmvtabpanel');
+            overview = tabpanel.getComponent('resource-overview');
+            properties.pids.resource = undefined;
+            if (overview) {
+                overview.close();
+            }
+        },
+        // Display the collection panel with all of the given concepts resources.
+        loadResources: function(pid) {
+            var resources = Ext.getCmp('collectionpanel');
+            pid = pid || properties.pids.concept;
+            // Create the panel and insert it in the after the Concept Overview if it doesn't exist.
+            if (!resources && typeof ContentModelViewer.widgets.CollectionPanel !== 'undefined') {
+                Ext.getCmp('cmvtabpanel').insert(1, Ext.create('ContentModelViewer.widgets.CollectionPanel', {
+                    pid: pid
+                }));
+            } else if (resources) {
+                resources.setPid(pid); // The Collection panel should show the resources of the given concept.
+            }
+        },
+        // Display the viewer
+        loadViewer: function(pid) {
+            var panel, dsid, viewFunction;
+            panel = Ext.getCmp('viewerpanel');
+            // @TODO get the rest of the params
+            // Create the panel and insert it in the first position if it doesn't exist.
+            if (!panel && typeof ContentModelViewer.widgets.ViewerPanel !== 'undefined') {
+                Ext.getCmp('cmvtabpanel').add(Ext.create('ContentModelViewer.widgets.ViewerPanel', {
+                    pid: pid,
+                    dsid: dsid,
+                    viewFunction: viewFunction
+                }));
+            } else if (panel) {
+                panel.setPid(pid);
+            }
+        },
+        loadManage: function(pid) {
+            var panel = Ext.getCmp('managepanel');
+            // Create the panel and insert it in the last position if it doesn't exist.
+            if (!panel && typeof ContentModelViewer.widgets.ManagePanel !== 'undefined') {
+                Ext.getCmp('cmvtabpanel').add(Ext.create('ContentModelViewer.widgets.ManagePanel', {
+                    pid: pid
+                }));
+            } else if (panel) {
+                panel.setPid(pid);
+            }
+        },
+        loadAddResourceForm: function() {
+            var cmv, overview, url, form_selector, success, data;
+            cmv = this;
+            overview = Ext.getCmp('cmvtabpanel').getComponent('resource-overview');
+            url = ContentModelViewer.properties.url.object.add(ContentModelViewer.properties.pids.concept, 'resource');
+            form_selector = '#add-resource-form form';
+            success = function(loader, response, options) {
+                if (typeof response.responseText !== 'undefined') {
+                    data = JSON.parse(response.responseText);
+                    if (data.refresh) {
+                        cmv.refreshTreeNodes(ContentModelViewer.properties.pids.concept); // Update the number in the tree
+                        cmv.selectResource(data.refresh); // Should be newly created object.
+                        cmv.refreshResources(); // Show object in page if possible.
+                    }
+                }
+            };
+            if (!overview) {
+                this.loadResource({
+                    url: url
+                });
+            } else {
+                overview.loadAddObjectContent(url, form_selector, success);
+            }
+            this.showResource();
+        },
+        loadAddConceptForm: function() {
+            var cmv, data, url;
+            url = ContentModelViewer.properties.url.object.add(ContentModelViewer.properties.pids.concept, 'concept');
+            cmv = this;
+            Ext.getCmp('cmvtabpanel').getComponent('concept-overview').loadAddObjectContent(url, '#add-concept-form form', function(loader, response, options) {
+                if (typeof response.responseText !== 'undefined') {
+                    data = JSON.parse(response.responseText);
+                    if (data.refresh) {
+                        cmv.refreshTreeNodes(ContentModelViewer.properties.pids.concept); // Update the object we were previously on
+                        cmv.selectConcept(data.refresh); // Should be newly created object.
+                    }
+                }
+            });
+        },
+        loadResourceEditMetadataForm: function() {
+            var cmv, data;
+            cmv = this;
+            Ext.getCmp('cmvtabpanel').getComponent('resource-overview').loadEditMetadataContent('#resource-metadata-form form', function(loader, response, options) {
+                if (typeof response.responseText !== 'undefined') {
+                    data = JSON.parse(response.responseText);
+                    if (data.refresh) {
+                        cmv.refreshResource();
+                        cmv.refreshResources();
+                        cmv.refreshTreeNodes(ContentModelViewer.properties.pids.concept); // Update the object we were previously on
+                    }
+                }
+            });
+        },
+        loadConceptEditMetadataForm: function() {
+            var cmv, data;
+            cmv = this;
+            Ext.getCmp('cmvtabpanel').getComponent('concept-overview').loadEditMetadataContent('#concept-metadata-form form', function(loader, response, options) {
+                if (typeof response.responseText !== 'undefined') {
+                    data = JSON.parse(response.responseText);
+                    if (data.refresh) {
+                        cmv.refreshTreeNodes(data.refresh);
+                    }
+                }
+            });
+        },
+        //SFOX DTC-148
+        loadPublishDatasetForm: function() {
+            var cmv, data;
+            cmv = this;
+            Ext.getCmp('cmvtabpanel').getComponent('concept-overview').loadPublishMetadataContent('#dataset-publish-form form', function(loader, response, options) {
+                if (typeof response.responseText !== 'undefined') {
+                    data = JSON.parse(response.responseText);
+                    if (data.refresh) {
+                        cmv.refreshTreeNodes(data.refresh);
+                    }
+                }
+            });
+        },
+        //
+        loadResourceEditPermissionForm: function() {
+            Ext.getCmp('cmvtabpanel').getComponent('resource-overview').loadEditPermissionContent('#resource-permission-form form');
+        },
+        //
+        loadConceptEditPermissionForm: function() {
+            Ext.getCmp('cmvtabpanel').getComponent('concept-overview').loadEditPermissionContent('#concept-permission-form form');
+        },
+        //
+        refreshConcept: function() {
+            var panel = Ext.getCmp('cmvtabpanel').getComponent('concept-overview');
+            if (panel) {
+                panel.refresh();
+            }
+        },
+        //
+        refreshResource: function() {
+            var panel = Ext.getCmp('cmvtabpanel').getComponent('resource-overview');
+            if (panel) {
+                if (properties.pids.resource !== undefined) {
+                    panel.refresh();
+                } else {
+                    this.closeResource();
+                    this.showConcept();
+                }
+            }
+        },
+        //
+        refreshResources: function() {
+            Ext.getCmp('collectionpanel').refresh();
+        },
+        refreshTreeNodes: function(pid) {
+            Ext.getCmp('cmvtreepanel').refreshNodes(pid);
+        },
+        // Reloads the tree data.
+        refreshTree: function(pid) {
+            Ext.getCmp('cmvtreepanel').refreshChildren(pid);
+        },
+        refreshTreeParents: function(pid) {
+            Ext.getCmp('cmvtreepanel').refreshParents(pid);
+        },
+        //
+        showConcept: function() {
+            var tabpanel, panel;
+            tabpanel = Ext.getCmp('cmvtabpanel');
+            panel = tabpanel.getComponent('concept-overview');
+            if (panel) {
+                Ext.getCmp('cmvtabpanel').setActiveTab(panel);
+            }
+        },
+        //
+        showResource: function() {
+            var tabpanel, panel;
+            tabpanel = Ext.getCmp('cmvtabpanel');
+            panel = tabpanel.getComponent('resource-overview');
+            if (panel) {
+                tabpanel.setActiveTab(panel);
+            }
+        },
+        //
+        showViewer: function() {
+            console.log("showViewer");
+            var panel = Ext.getCmp('viewerpanel');
+            if (panel) {
+                Ext.getCmp('cmvtabpanel').setActiveTab(panel);
+                // TODO set the default view datastream? or do so in the load function?
+            }
+        },
+        // Olderstuff
+        // This pid determines whats shown in the tree and if the ConceptOverview is shown
+        setCollectionPid: function(pid) {
+            var collection = Ext.getCmp('collectionpanel');
+            properties.pids.collection = pid;
+            collection.setPid(pid);
+        },
+        // Determines whats shown in viewer/manage
+        setFocusedPid: function(pid, isCollection) {
+            var viewer = Ext.getCmp('viewerpanel'),
+                    manage = Ext.getCmp('managepanel'),
+                    tabpanel = Ext.getCmp('cmvtabpanel'),
+                    resourceOverview = tabpanel.getComponent('resource-overview'),
+                    index;
 
       properties.pids.focused = pid;
       if (!isCollection) {

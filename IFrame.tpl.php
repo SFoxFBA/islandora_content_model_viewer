@@ -21,6 +21,7 @@
     <div id="object_datastreams_url"><?php print check_url(url($paths['object']['datastreams'])); ?></div>
     <div id="object_permission_form_url"><?php print check_url(url($paths['object']['permission_form'])); ?></div>
     <div id="object_metadata_form_url"><?php print check_url(url($paths['object']['metadata_form'])); ?></div>
+    <div id="object_publish_form_url"><?php print check_url(url($paths['object']['publish_form'])); //SFOX DTC-148 ?></div>
     <div id="object_members_url"><?php print check_url(url($paths['object']['members'])); ?></div>
     <div id="object_treemembers_url"><?php print check_url(url($paths['object']['treemembers'])); ?></div>
     <div id="object_treemember_url"><?php print check_url(url($paths['object']['treemember'])); ?></div>

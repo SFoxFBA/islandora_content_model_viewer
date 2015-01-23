@@ -80,7 +80,10 @@ class Collection {
     $repo = tuque_wrapper_get_repository_instance();
     try {
       $object = $repo->getObject($model);
-    } catch (Exception $e) { return FALSE; }
+    }
+    catch (Exception $e) {
+      return FALSE;
+    }
     return array_search(self::COLLECTION_MODEL, $object->models) !== FALSE;
   }
 
@@ -114,24 +117,43 @@ class Collection {
     $filter = isset($_REQUEST['filter']) ? json_decode($_REQUEST['filter']) : $this->default['filter'];
     $sort = isset($_REQUEST['sort']) ? json_decode($_REQUEST['sort']) : $this->default['sort'];
     $search = isset($filter[0]->value) ? trim($filter[0]->value) : NULL;
-    $query = "select ?object ?title ?model ?created from <#ri> where {
-      <info:fedora/{$this->pid}> <fedora-rels-ext:hasResource> ?object .
-      ?object <fedora-model:state> <fedora-model:Active>;
+
+    //SFOX DTC-148 publication process
+    $resourcerdfs = sidora_return_forward_fba_resource_rdfs();
+    $arraycount = count($resourcerdfs);
+    $query = "select ?object ?title ?model ?created from <#ri> where {";
+    $query .= " ?object <fedora-model:state> <fedora-model:Active>;
       <fedora-model:label> ?title;
       <fedora-model:hasModel> ?model;
       <fedora-model:createdDate> ?created;
       FILTER(!sameTerm(?model, <info:fedora/fedora-system:FedoraObject-3.0>) &&
-           !sameTerm(?model, <info:fedora/si:resourceCModel>))
+           !sameTerm(?model, <info:fedora/si:resourceCModel>))";
+    foreach ($resourcerdfs as $key => $keyvalue) {
+      $query.= "{<info:fedora/{$this->pid}> <fedora-rels-ext:" . $keyvalue . "> ?object}";
+      if ($key < $arraycount - 1) { //as arraycounts don't start at zero
+        $query .= ' UNION ';
+      }
     }
+
+    $query .=" }
     ORDER BY ?created
     OFFSET {$offset}
     LIMIT {$limit}";
 
     if (isset($search) && $search != '') {
-    
-     	$query = "select ?object ?title ?model ?created from <#ri> where {
-      		<info:fedora/{$this->pid}> <fedora-rels-ext:hasResource> ?object .
-      		?object <fedora-model:state> <fedora-model:Active>;
+      //SFOX
+      $resourcerdfs = sidora_return_forward_fba_resource_rdfs();
+      $arraycount = count($resourcerdfs);
+
+      $query = "select ?object ?title ?model ?created from <#ri> where {";
+      foreach ($resourcerdfs as $key => $keyvalue) {
+        $query .= "{<info:fedora/{$this->pid}> <fedora-rels-ext:" . $keyvalue . "> ?object}";
+        if ($key < $arraycount - 1) { //as arraycounts don't start at zero
+          $query .= ' UNION ';
+        }
+      }
+
+      $query = ". ?object <fedora-model:state> <fedora-model:Active>;
       		<fedora-model:label> ?title;
       		<fedora-model:hasModel> ?model;
                 <fedora-model:createdDate> ?created;
@@ -146,10 +168,10 @@ class Collection {
 
     $results = $this->findMembersBySparqlQuery($query);
     $results = $this->sort($results, $sort);
-    $count = 0; 
+    $count = 0;
     $count_array = $this->getChildCountOfResources($this->pid);
     if (isset($count_array)) {
-           $count = $count_array[1];
+      $count = $count_array[1];
     }
 
     $results = $this->populate($results, TRUE);
@@ -159,79 +181,148 @@ class Collection {
   public function getTreeMembers() {
     global $base_url;
     $getMembersThroughSparql = true;
-    if ($getMembersThroughSparql){
-      if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("f:getTreeMembers");
-      $child_concepts = 'count(select $concept from <#ri> where
-	$object <fedora-rels-ext:hasConcept> $concept and
-	$concept <fedora-model:state> <fedora-model:Active>)';
-      $child_resources = 'count(select $resource from <#ri> where
-	$object <fedora-rels-ext:hasResource> $resource and
-	$resource <fedora-model:state> <fedora-model:Active>)';
-      $query = 'select $object $title $model $created ' . $child_concepts . ' ' . $child_resources . ' from <#ri> where
-	<info:fedora/' . $this->pid . '> <fedora-rels-ext:hasConcept> $object and
-	$object <fedora-model:state> <fedora-model:Active> and
-	$object <fedora-model:label> $title and
-	$object <fedora-model:createdDate> $created and
-	$object <fedora-model:hasModel> $model
-	minus $model <mulgara:is> <info:fedora/si:conceptCModel>
-	minus $model <mulgara:is> <info:fedora/fedora-system:FedoraObject-3.0>
-	order by $title';
-/*
-*/
-      if (module_exists('sidora_performance_monitor'))     sidora_performance_monitor_start("c:getTreeMembersQuery");
+    if ($getMembersThroughSparql) {
+      if (module_exists('sidora_performance_monitor'))
+        sidora_performance_monitor_start("f:getTreeMembers");
+
+      //SFOX hasConcept has been replaced by individual class (concept) RDFs
+      $conceptrdfs = sidora_return_forward_fba_concept_rdfs();
+
+      $child_concepts = 'count(select $concept from <#ri> where ';
+      //$child_concepts .= '$object <fedora-rels-ext:hasConcept> $concept'; SFOX original line
+      $arraycount = count($conceptrdfs);
+      $child_concepts .= '(';
+      foreach ($conceptrdfs as $key => $keyvalue) {
+        $child_concepts .= '$object <fedora-rels-ext:' . $keyvalue . '> $concept';
+        if ($key < $arraycount - 1) { //as arraycounts don't start at zero
+          $child_concepts .= ' or ';
+        }
+        else {
+          $child_concepts .= ') ';
+        }
+      }
+
+      $child_concepts .= 'and $concept <fedora-model:state> <fedora-model:Active>)';
+      //
+      //SFOX hasResource has been replaced by individual class (resource) RDFs
+      $resourcerdfs = sidora_return_forward_fba_resource_rdfs();
+      $child_resources = 'count(select $resource from <#ri> where ';
+
+      //$child_resources .= '$object <fedora-rels-ext:hasResource> $resource '; SFOX original line
+      $arraycount = count($resourcerdfs);
+      $child_resources .= '(';
+      foreach ($resourcerdfs as $key => $keyvalue) {
+        $child_resources .= '$object <fedora-rels-ext:' . $keyvalue . '> $resource';
+        if ($key < $arraycount - 1) { //as arraycounts don't start at zero
+          $child_resources .= ' or ';
+        }
+        else {
+          $child_resources .= ') ';
+        }
+      }
+      $child_resources .= 'and $resource <fedora-model:state> <fedora-model:Active>)';
+
+      $query = 'select $object $title $model $created ' . $child_concepts . ' ' . $child_resources . ' from <#ri> where';
+
+      //SFOX hasConcept has been replaced by individual class (concept) RDFs
+      $arraycount = count($conceptrdfs);
+      $query .= '(';
+      foreach ($conceptrdfs as $key => $keyvalue) {
+      //$query .= '<info:fedora/' . $this->pid . '> <fedora-rels-ext:hasConcept> $object';  SFOX Original line
+        $query .= '<info:fedora/' . $this->pid . '> <fedora-rels-ext:' . $keyvalue . '> $object';
+        if ($key < $arraycount - 1) { //as arraycounts don't start at zero
+          $query .= ' or ';
+        }
+        else {
+          $query .= ') ';
+        }
+      }
+
+      $query .= 'and $object <fedora-model:state> <fedora-model:Active> and
+      $object <fedora-model:label> $title and
+      $object <fedora-model:createdDate> $created and
+      $object <fedora-model:hasModel> $model
+      minus $model <mulgara:is> <info:fedora/si:conceptCModel>
+      minus $model <mulgara:is> <info:fedora/fedora-system:FedoraObject-3.0>
+      order by $title';
+      if (module_exists('sidora_performance_monitor'))
+        sidora_performance_monitor_start("c:getTreeMembersQuery");
       $results = $this->query($query);
-      if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("c:getTreeMembersQuery","tree member query");
-      if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("c:getTreeMembersPop");
+      if (module_exists('sidora_performance_monitor'))
+        sidora_performance_monitor_write_out("c:getTreeMembersQuery", "tree member query");
+      if (module_exists('sidora_performance_monitor'))
+        sidora_performance_monitor_start("c:getTreeMembersPop");
       $results = $this->populate($results);
-      if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("c:getTreeMembersPop","tree member populate:".$to_output);
-      if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("f:getTreeMembers","tree member query and populate");
-    }else{
+      if (module_exists('sidora_performance_monitor'))
+        sidora_performance_monitor_write_out("c:getTreeMembersPop", "tree member populate");
+      if (module_exists('sidora_performance_monitor'))
+        sidora_performance_monitor_write_out("f:getTreeMembers", "tree member query and populate");
+    } else {
+	  //SFOX processing will never get to here!!!
       module_load_include('inc', 'fedora_repository', 'api/fedora_item');
       $item = new Fedora_Item($this->pid);
       $rels_ext = $item->get_datastream_dissemination('RELS-EXT');
       $results = array();
-      $lines = explode(":hasConcept rdf:resource=\"info:fedora/",$rels_ext);
-      for ($line_index=1; $line_index < count($lines); $line_index++){
-	      $line = $lines[$line_index];
-	      if (strpos($line, "</fedora:hasConcept") !== FALSE){
-		$item_parts = explode("\"></fedora:hasConcept>",$line);
-	      }else{
-		$item_parts = explode("\"/>",$line);
-	      }
-	      $item_id = $item_parts[0];
-	      $curr_item = new Fedora_Item($item_id);
-	      $curr_rels_ext = $curr_item->get_datastream_dissemination('RELS-EXT');
-	      $most_recent_model = '';
-	      $models = $curr_item->get_model_relationships("");
-	      foreach($models as $model){
-		if (
-		  $model['object'] != 'si:conceptCModel' &&
-		  $model['object'] != 'fedora-system:FedoraObject-3.0'
-		){
-		  $most_recent_model = $model['object'];
-		}
-	      }
-	      $curr_result = array();
-	      $curr_result['pid'] = $item_id;
-	      $curr_result['label'] = $curr_item->objectProfile->objLabel;
-	      $curr_result['created'] = $curr_item->objectProfile->objCreatedDate;
-	      $curr_result['model'] = $most_recent_model;
-	      $curr_result['relatedCount'] = count($curr_item->get_relationships('hasConcept'));
-	      $curr_result['link'] = "$base_url/fedora/repository/$item_id";
-	      $curr_result['isCollection'] = '0';
-	      if (!empty($curr_rels_ext)) $results[] = $curr_result;
+      $lines = explode(":hasConcept rdf:resource=\"info:fedora/", $rels_ext);
+      for ($line_index = 1; $line_index < count($lines); $line_index++) {
+        $line = $lines[$line_index];
+        if (strpos($line, "</fedora:hasConcept") !== FALSE) {
+          $item_parts = explode("\"></fedora:hasConcept>", $line);
+        }
+        else {
+          $item_parts = explode("\"/>", $line);
+        }
+        $item_id = $item_parts[0];
+        $curr_item = new Fedora_Item($item_id);
+        $curr_rels_ext = $curr_item->get_datastream_dissemination('RELS-EXT');
+        $most_recent_model = '';
+        $models = $curr_item->get_model_relationships("");
+        foreach ($models as $model) {
+          if (
+              $model['object'] != 'si:conceptCModel' &&
+              $model['object'] != 'fedora-system:FedoraObject-3.0'
+          ) {
+            $most_recent_model = $model['object'];
+          }
+        }
+        $curr_result = array();
+        $curr_result['pid'] = $item_id;
+        $curr_result['label'] = $curr_item->objectProfile->objLabel;
+        $curr_result['created'] = $curr_item->objectProfile->objCreatedDate;
+        $curr_result['model'] = $most_recent_model;
+        $curr_result['relatedCount'] = count($curr_item->get_relationships('hasConcept'));
+        $curr_result['link'] = "$base_url/fedora/repository/$item_id";
+        $curr_result['isCollection'] = '0';
+        if (!empty($curr_rels_ext))
+          $results[] = $curr_result;
       }
       $results = $this->populate($results);
     }
     return $results;
   }
 
-  // Counts resources.
+// Counts resources.
   public function getChildCount($pid) {
-    $count = 'count(select $pid from <#ri> where
-      $pid <fedora-model:state> <fedora-model:Active> and
-      $object <fedora-rels-ext:hasResource> $pid or
-      $object <fedora-rels-ext:hasConcept> $pid)';
+	//SFOX hasConcept has been replaced by individual class (concept) RDFs, same for hasResource
+    $resourcerdfs = sidora_return_forward_fba_resource_rdfs();
+	//$resourcecount = count($conceptrdfs);
+
+    $count = 'count(select $pid from <#ri> where $pid <fedora-model:state> <fedora-model:Active> and (';
+	//$count .= '$object <fedora-rels-ext:hasResource> $pid'; SFOX original line
+    foreach ($resourcerdfs as $key => $keyvalue) {
+      $count .= '$object <fedora-rels-ext:' . $keyvalue . '> $pid';
+      $count .= ' or ';
+    }
+	//$count .= '$object <fedora-rels-ext:hasConcept> $pid'; SFOX original line
+    $conceptrdfs = sidora_return_forward_fba_concept_rdfs();
+    $conceptcount = count($conceptrdfs);
+    foreach ($conceptrdfs as $key => $keyvalue) {
+      $count .= '$object <fedora-rels-ext:hasConcept> $pid';
+      if ($key < $conceptcount - 1) { //as arraycounts don't start at zero
+        $count .= ' or ';
+      }
+    }
+    $count .= '))';
     $query = 'select $object $title ' . $count . ' from <#ri> where
       $object <mulgara:is>  <info:fedora/' . $pid . '> and
       $object <fedora-model:label> $title';
@@ -251,13 +342,23 @@ class Collection {
     }
     return array();
   }
- 
-  // Counts resources.
+
+// Counts resources.
   public function getChildCountOfResources($pid) {
-    $count = 'count(select $pid from <#ri> where
-      $pid <fedora-model:state> <fedora-model:Active> and
-      $object <fedora-rels-ext:hasResource> $pid 
-      )';
+
+    //SFOX hasConcept has been replaced by individual class (concept) RDFs
+    $resourcerdfs = sidora_return_forward_fba_resource_rdfs();
+    $arraycount = count($resourcerdfs);
+
+    $count = 'count(select $pid from <#ri> where $pid <fedora-model:state> <fedora-model:Active> and ';
+    //$count .='$object <fedora-rels-ext:hasResource> $pid'  SFOX original line
+    foreach ($resourcerdfs as $key => $keyvalue) {
+      $count .='$object <fedora-rels-ext:' . $keyvalue . '> $pid';
+      if ($key < $arraycount - 1) { //as arraycounts don't start at zero
+        $count .= ' or ';
+      }
+    }
+    $count .=')';
     $query = 'select $object $title ' . $count . ' from <#ri> where
       $object <mulgara:is>  <info:fedora/' . $pid . '> and
       $object <fedora-model:label> $title';
@@ -325,18 +426,19 @@ class Collection {
    *
    * @return array
    */
-  private function findMembers() {
+  //SFOX, this isn't used anywhere
+  /* private function findMembers() {
     $query = 'select $object $title $model  from <#ri> where
-      <info:fedora/' . $this->pid . '> <fedora-rels-ext:hasResource> $object and
-      $object <fedora-model:state> <fedora-model:Active> and
-      $object <fedora-model:label> $title and
-      $object <fedora-model:createdDate> $created and
-      $object <fedora-model:hasModel> $model
-      minus $model <mulgara:is> <info:fedora/si:resourceCModel>
-      minus $model <mulgara:is> <info:fedora/fedora-system:FedoraObject-3.0>
-      order by $title';
+    <info:fedora/' . $this->pid . '> <fedora-rels-ext:hasResource> $object and
+    $object <fedora-model:state> <fedora-model:Active> and
+    $object <fedora-model:label> $title and
+    $object <fedora-model:createdDate> $created and
+    $object <fedora-model:hasModel> $model
+    minus $model <mulgara:is> <info:fedora/si:resourceCModel>
+    minus $model <mulgara:is> <info:fedora/fedora-system:FedoraObject-3.0>
+    order by $title';
     return $this->query($query, TRUE);
-  }
+    } */
 
   /**
    * Runs a SPARQL query and returns the results in a array.
@@ -356,15 +458,20 @@ class Collection {
    * @return array
    */
   private function query($query) {
-    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("f:query");
+    if (module_exists('sidora_performance_monitor'))
+      sidora_performance_monitor_start("f:query");
     module_load_include('inc', 'fedora_repository', 'CollectionClass');
     $collection = new CollectionClass();
-    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("c:queryrelobj");
+    if (module_exists('sidora_performance_monitor'))
+      sidora_performance_monitor_start("c:queryrelobj");
     $results = $collection->getRelatedObjects($this->pid, 1000000, NULL, $query);
-    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("c:queryrelobj","rel obj for:$pid");
-    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("c:querysave");
+    if (module_exists('sidora_performance_monitor'))
+      sidora_performance_monitor_write_out("c:queryrelobj", "rel obj for:$pid");
+    if (module_exists('sidora_performance_monitor'))
+      sidora_performance_monitor_start("c:querysave");
     file_save_data(print_r($results, TRUE), '/tmp/log_resource_display.txt', FILE_EXISTS_RENAME);
-    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("c:querysave","Saved to a file?");
+    if (module_exists('sidora_performance_monitor'))
+      sidora_performance_monitor_write_out("c:querysave", "Saved to a file?");
     $results = trim($results);
     if ($results != '') {
       $document = new DOMDocument();
@@ -373,14 +480,16 @@ class Collection {
       $path->registerNamespace('sparql', 'http://www.w3.org/2001/sw/DataAccess/rf1/result');
       $results = $path->query('//sparql:result');
       $num_results = $results->length;
-      if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("f:query","SPARQL q:".$query);
+      if (module_exists('sidora_performance_monitor'))
+        sidora_performance_monitor_write_out("f:query", "SPARQL q:" . $query);
       return ($num_results > 0) ? $this->processQueryResults($results, $path) : array();
     }
-    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("f:query","SPARQL fail q:".$query);
+    if (module_exists('sidora_performance_monitor'))
+      sidora_performance_monitor_write_out("f:query", "SPARQL fail q:" . $query);
     return array();
   }
 
-   /**
+  /**
    * Launch a SPARQL query. Returns all members found up to 1,000,000 results.
    *
    * @param string $query
@@ -405,6 +514,7 @@ class Collection {
     }
     return array();
   }
+
   /**
    * Process the returned query results and generate the appropriate array of values for each result.
    *
@@ -600,25 +710,33 @@ class Collection {
    */
   private function populate($results, $show_type = FALSE) {
     global $base_url;
-    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("f:populate");
+    if (module_exists('sidora_performance_monitor'))
+      sidora_performance_monitor_start("f:populate");
     foreach ($results as &$result) {
       $pid = $result['pid'];
-      if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("c:populate_indiv");
+      if (module_exists('sidora_performance_monitor'))
+        sidora_performance_monitor_start("c:populate_indiv");
       $type = $this->getType($pid);
       if ($show_type) {
         $result['label'] = "{$type}: {$result['label']}";
         $result['originalMetadata'] = $this->isMetadataOriginal($pid);
       }
-      if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("c:pop_thumbnail");
+      if (module_exists('sidora_performance_monitor'))
+        sidora_performance_monitor_start("c:pop_thumbnail");
       $result['tn'] = $this->getThumbnail($pid, $type);
-      if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("c:pop_thumbnail", "thumbnail info for:".$pid);
+      if (module_exists('sidora_performance_monitor'))
+        sidora_performance_monitor_write_out("c:pop_thumbnail", "thumbnail info for:" . $pid);
       $result['link'] = "$base_url/fedora/repository/$pid";
-      if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("c:check_collection");
+      if (module_exists('sidora_performance_monitor'))
+        sidora_performance_monitor_start("c:check_collection");
       $result['isCollection'] = self::isModelCollection($result['model']);
-      if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("c:check_collection", "collection info for:".$pid);
-      if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("c:populate_indiv", "Populated info for:".$pid);
+      if (module_exists('sidora_performance_monitor'))
+        sidora_performance_monitor_write_out("c:check_collection", "collection info for:" . $pid);
+      if (module_exists('sidora_performance_monitor'))
+        sidora_performance_monitor_write_out("c:populate_indiv", "Populated info for:" . $pid);
     }
-    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("f:populate","Populated:".count($results));
+    if (module_exists('sidora_performance_monitor'))
+      sidora_performance_monitor_write_out("f:populate", "Populated:" . count($results));
     return $results;
   }
 
@@ -658,10 +776,21 @@ class Collection {
   private function getType($pid) {
     module_load_include('inc', 'fedora_repository', 'ObjectHelper');
     $types = array(
-      'si:datasetCModel' => 'Dataset',
-      'si:imageCModel' => 'Image',
-      'si:generalImageCModel' => 'Image',
-      'si:fieldbookCModel' => 'Text'
+      //'si:datasetCModel' => 'Dataset',
+      //'si:imageCModel' => 'Image',
+      //'si:generalImageCModel' => 'Image',
+      //'si:fieldbookCModel' => 'Text',
+      'fba:analysis_cmodel' => 'Analysis',
+      'fba:measurement_cmodel' => 'Measurement',
+      'fba:simulation_cmodel' => 'Simulation',
+      'fba:synthesis_cmodel' => 'Synthesis',
+      'fba:litreview_cmodel' => 'Literature Review',
+      'fba:supp_basic_image_cmodel' => 'Image',
+      'fba:supp_large_image_cmodel' => 'Large Image',
+      'fba:supp_pdf_cmodel' => 'PDF',
+      'fba:supp_text_cmodel' => 'Text',
+      'fba:supp_excel_cmodel' => 'Excel',
+      'fba:supp_word_cmodel' => 'Word',
     );
     $object_helper = new ObjectHelper();
     $content_models = $object_helper->get_content_models_list($pid);
@@ -670,7 +799,7 @@ class Collection {
         return $types[$content_model->pid];
       }
     }
-    return 'Text';
+    return 'Unknown';
   }
 
   /**

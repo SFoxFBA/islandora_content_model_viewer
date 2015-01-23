@@ -68,13 +68,17 @@ class Tree {
      * If it is not set or if it is root, then we want to build the tree based on the root node,
      * otherwise build the tree for the passed node.
      */
-    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("f:getTree");
+    if (module_exists('sidora_performance_monitor'))
+      sidora_performance_monitor_start("f:getTree");
     $requested_pid = (!isset($this->node) || $this->node == 'root') ? $this->root : $this->node;
     $this->getParents($this->pid); // Sets an instance variable used in other functions thoughout this function.
-    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("c:buildTree");
+    if (module_exists('sidora_performance_monitor'))
+      sidora_performance_monitor_start("c:buildTree");
     $tree = $this->buildTree($requested_pid);
-    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("c:buildTree","tree builder");
-    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("f:getTree","tree creator");
+    if (module_exists('sidora_performance_monitor'))
+      sidora_performance_monitor_write_out("c:buildTree", "tree builder");
+    if (module_exists('sidora_performance_monitor'))
+      sidora_performance_monitor_write_out("f:getTree", "tree creator");
     return json_encode(array('success' => TRUE, 'data' => $tree, 'parents' => $this->parents));
   }
 
@@ -86,22 +90,32 @@ class Tree {
    * @return string
    */
   public function buildTree($pid) {
-    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("f:buildTree");
-    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("c:moduleLoad");
+    if (module_exists('sidora_performance_monitor'))
+      sidora_performance_monitor_start("f:buildTree");
+    if (module_exists('sidora_performance_monitor'))
+      sidora_performance_monitor_start("c:moduleLoad");
     module_load_include('inc', 'content_model_viewer', 'Collection');
-    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("c:moduleLoad","loaded Collection");
-    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("c:collection__con");
+    if (module_exists('sidora_performance_monitor'))
+      sidora_performance_monitor_write_out("c:moduleLoad", "loaded Collection");
+    if (module_exists('sidora_performance_monitor'))
+      sidora_performance_monitor_start("c:collection__con");
     $collection = new Collection($pid);
-    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("c:collection__con","Collection:$pid");
-    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("c:treeMembers");
+    if (module_exists('sidora_performance_monitor'))
+      sidora_performance_monitor_write_out("c:collection__con", "Collection:$pid");
+    if (module_exists('sidora_performance_monitor'))
+      sidora_performance_monitor_start("c:treeMembers");
     $members = $collection->getTreeMembers();
-    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("c:treeMembers","TreeMembers:$pid");
-    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("s:node_creations");
+    if (module_exists('sidora_performance_monitor'))
+      sidora_performance_monitor_write_out("c:treeMembers", "TreeMembers:$pid");
+    if (module_exists('sidora_performance_monitor'))
+      sidora_performance_monitor_start("s:node_creations");
     foreach ($members as $member) {
       $data[] = $this->createNode($member);
     }
-    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("s:node_creations","num nodes:".count($membes));
-    if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("f:buildTree","tree builder");
+    if (module_exists('sidora_performance_monitor'))
+      sidora_performance_monitor_write_out("s:node_creations", "num nodes:" . count($membes));
+    if (module_exists('sidora_performance_monitor'))
+      sidora_performance_monitor_write_out("f:buildTree", "tree builder");
     return $data;
   }
 
@@ -149,20 +163,20 @@ class Tree {
    * @param string $pid
    */
   private function getParents($pid) {
-    return;//Thorny does not want the auto expand so just do this for now in case he wants it back
+    return; //Thorny does not want the auto expand so just do this for now in case he wants it back
     // Root is expanded by default so make sure the pid is not root
     if ($pid != $this->root) {
       // Load the collection class
       module_load_include('inc', 'content_model_viewer', 'Collection');
       $collection = new Collection($pid);
       // Get the parents of the current pid. If pid has multiple parents, this should be handled.
-      /*list($parent, $total) = $collection->getParents($pid);
-      foreach ($parent as $k => $arr) {
+      /* list($parent, $total) = $collection->getParents($pid);
+        foreach ($parent as $k => $arr) {
         if ($arr['pid'] != $this->root) {
-          $this->parents[] = $arr['pid'];
+        $this->parents[] = $arr['pid'];
         }
-      }
-      return;*/
+        }
+        return; */
       list($parent, $total) = $collection->getParent($pid);
       foreach ($parent as $k => $arr) {
         // Make sure we're not at the root pid, otherwise save the returned pid as a parent and check
