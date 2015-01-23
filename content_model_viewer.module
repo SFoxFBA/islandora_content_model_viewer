@@ -148,12 +148,6 @@ function content_model_viewer_menu() {
     'access arguments' => array(PERM_CONTENT_MODEL_VIEWER_PURGE_DATASTREAMS),
     'type' => MENU_CALLBACK,
   );
-  $items['viewer/%/%/ids_iframe'] = array(
-    'page callback' => 'content_model_viewer_view_ids_iframe',
-    'page arguments' => array(1, 2),
-    'access arguments' => array(PERM_CONTENT_MODEL_VIEWER_DOWNLOAD_DATASTREAMS),
-    'type' => MENU_CALLBACK,
-  );
   $items['viewer/%/%/download'] = array(
     'page callback' => 'content_model_viewer_download_datastream',
     'page arguments' => array(1, 2),
@@ -980,8 +974,12 @@ function content_model_viewer_iframe($pid = NULL) {
   $path = drupal_get_path('module', 'content_model_viewer');
   $js_path = $path . '/js';
   module_load_include('inc', 'extjs', 'extjs.utils');
-  extjs_add_all();
   extjs_add_css_file('ext-all-gray');
+  extjs_add_all();
+  //SFOX extracted next lines from extjs_add_all function, and changed defer from TRUE to FALSE
+  $file = 'ext-all';
+  $path = extjs_get_js_path();
+  drupal_add_js($path . '/' . $file . extjs_get_js_file_suffix(), 'module', 'header', FALSE);
   drupal_add_css(drupal_get_path('module', 'sidora') . '/css/smith.css', 'theme'); // God awful hack
   /* Load Panels/Widgets */
   drupal_add_js($js_path . '/json2.js'); // Deal with IE problems
@@ -1266,16 +1264,24 @@ function content_model_viewer_treemember($pid) {
  *   The PID of the Fedora Object, whose data streams this function will get/set.s
  */
 function content_model_viewer_datastreams($pid, $dsid = NULL) {
-  if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_start("f:content_model_viewer_datastreams");
+  if (module_exists('sidora_performance_monitor'))
+    sidora_performance_monitor_start("f:content_model_viewer_datastreams");
   module_load_include('inc', 'content_model_viewer', 'DatastreamProperties');
   switch ($_SERVER['REQUEST_METHOD']) {
-    case 'GET':
+    case 'GET': {
       $filter = isset($_GET['filter']) ? $_GET['filter'] : FALSE;
+        //SFOX Horrible hack to stop MalformedPidException being thrown when $pid = "undefined"
+        if (strcmp('undefined', $pid) !== 0) {
       $datastreams = new DatastreamProperties($pid);
       list($data, $total) = $datastreams->get($_GET['start'], $_GET['limit'], $filter);
       echo json_encode(array('success' => TRUE, 'data' => $data, 'total' => $total));
-      if (module_exists('sidora_performance_monitor')) sidora_performance_monitor_write_out("f:content_model_viewer_datastreams","datastream callback, GET");
+          if (module_exists('sidora_performance_monitor'))
+            sidora_performance_monitor_write_out("f:content_model_viewer_datastreams", "datastream callback, GET");
       exit();
+        } else {
+          exit();
+        }
+      }
     case 'PUT':
       if ($_SERVER['CONTENT_LENGTH'] > 0) {
         $stdin = fopen("php://input", "r");
@@ -1909,76 +1915,6 @@ function content_model_viewer_download_datastream($pid, $dsid) {
   module_load_include('inc', 'content_model_viewer', 'Download');
   download_datastream($pid, $dsid);
 }
-/**
- * IDS Iframe contents, direct to output, exit() at end
- *
- * @param string $pid
- * @param string $dsid
- *
- * @return none
- */
-function content_model_viewer_view_ids_iframe($pid, $dsid) {
-  print '<html>';
-  print '<head>';
-  print '<script src="';
-  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/jquery-1.9.1.min.js"';
-  print '></script>';
-  print '<script src="';
-  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/jquery-ui-1.9.2.custom.min.js"';
-  print '></script>';
-  print '<script src="';
-  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/jquery.dynatree.min.js"';
-  print '></script>';
-  print '<script src="';
-  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/scrollspy.js"';
-  print '></script>';
-  print '<script src="';
-  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/jquery.jscroll.min.js"';
-  print '></script>';
-  print '<script src="';
-  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/imagesloaded.pkgd.min.js"';
-  print '></script>';
-  print '<script src="';
-  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/masonry.pkgd.min.js"';
-  print '></script>';
-  print '<script src="';
-  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/jquery.ids.js"';
-  print '></script>';
-  print '<script src="';
-  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/seadragon-min.js"';
-  print '></script>';
-/*
-*/
-  print '</head>';
-  print '<body>';
-  print "
-<script>
-$(function(){
-var ids_id = '";
-  print str_replace('https','http',$GLOBALS['base_url']);//.'/'.drupal_get_path('module','content_model_viewer');
-  print "/viewer/$pid/$dsid/download';
-
-var ids__ = jQuery('#containerIDS').ids({
-      idsid: ids_id,
-      idsButtonPath: '";
-  print $GLOBALS['base_url'].'/'.drupal_get_path('module','content_model_viewer').'/idsiframe/js/buttons/';
-  print "',
-      //container: 'containerIDS',
-      rotation: 0,
-      fullscreen: false,
-      onComplete: function() {
-        jQuery('span[title=\"Toggle full page\"]').remove(); //Doesn't make sense to have a fullscreen button on this
-      },
-    });
-});
-</script>
-<div id='containerIDS' height='100%' width='100%'></div>
-
-";
-  print '</body>';
-  print '</html>';
-  exit();
-}
 
 /**
  * Renders the viewer for the given datastream ($dsid) from the object identified by $pid.
@@ -2257,6 +2193,8 @@ function content_model_viewer_edit_metadata_form_submit(array &$form, array &$fo
   $_SESSION['content_model_viewer_refresh_tree'] = $form_state['values']['pid']; // Yucky hac
   unset($_SESSION['messages']); // Don't display drupal messages to the user for this interface.
 }
+
+//SFOX
 
 function content_model_viewer_ingest_concept_metadata_form(array &$form_state, $collection_pid) {
   return fedora_repository_ingest_form($form_state, $collection_pid);

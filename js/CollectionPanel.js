@@ -98,7 +98,6 @@ Ext.onReady(function () {
         fn: function (view, record, item, index, event) {
         }
       }
-
     },
     setPid: function (pid) {
       this.pid = pid;
@@ -225,7 +224,7 @@ Ext.onReady(function () {
             label.value = (value !== '') ? value : null;
             store.load();
           }
-        }, '->', {
+                    }, '->', /* SFOX Not needed for now {
           xtype: 'combobox',
           store: Ext.create('Ext.data.Store', {
             model: Ext.regModel('State',{
@@ -275,7 +274,7 @@ Ext.onReady(function () {
                             Ext.Msg.alert('Status',response.purged.length+" Resource(s) deleted and "+response.unassociated.length+" Resource(s) un-associated from the current object.");
                             ContentModelViewer.functions.selectConcept();
                             ContentModelViewer.functions.refreshTreeParents(ContentModelViewer.properties.pids.concept);
-                            jQuery("button:contains('Resources')").click();
+                                                                jQuery("button:contains('Data Components')").click();
                           }
                         }
                       });
@@ -291,12 +290,12 @@ Ext.onReady(function () {
                   //Error message?
                 }else{
                   window.bm = new BatchMetadata();
-                  if (jQuery("button:contains('Resource Overview')").length == 0) {
+                                        if (jQuery("button:contains('Data Components')").length == 0) {
                     ContentModelViewer.functions.selectResource(jQuery(rbs[0]).attr('name'));//"si:257367");  //Fill with proper ID
                     //Auto-swaps to tab, images then go to viewer...why?
                   }else{
                     //Swap to the resource overview tab:
-                    jQuery("button:contains('Resource Overview')").click();
+                                            jQuery("button:contains('Data Components')").click();
                   }
                   for (rbsi=0; rbsi<rbs.size(); rbsi++){
                     var fedoraId = jQuery(rbs[rbsi]).attr('name');
@@ -341,9 +340,10 @@ Ext.onReady(function () {
               }
             }
           }
-        }, {
+                    }, */
+                    {
           xtype: 'button',
-          text: 'Add a new Resource',
+                        text: 'Add a new Data Component', //SFOX changed this
           handler: function (button, event) {
             window.tabularDataCodebookStep = "_ANR";
             ContentModelViewer.functions.loadAddResourceForm();
