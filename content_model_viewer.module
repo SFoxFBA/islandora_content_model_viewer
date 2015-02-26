@@ -6,6 +6,7 @@
  * Implements hooks and callbacks for this module.
  */
 module_load_include('inc', 'content_model_viewer', 'content_model_viewer.db'); // Helper functions/constants for database.
+include_once drupal_get_path('module', 'content_model_viewer') . '/content_model_viewer_publish.inc';
 
 /**
  * Constants
@@ -818,8 +819,14 @@ function template_preprocess_content_model_viewer_iframe(array &$variables) {
     $pid = $user_pid;
   }
   else {
-   $serialized_data = unserialize($user->data);
-   $root = $serialized_data['islandora_user_pid'];
+    $serialized_data = unserialize($user->data);
+    //SFOX DTC-163 Repository managers should be able to see all user's objects
+    if (in_array('FBA Sidora Repository Manager', $user->roles)) {
+      $root = 'fba:user-projects';
+    }
+    else {
+      $root = $serialized_data['islandora_user_pid'];
+    } //SFOX DTC-163
   }
 
   if ($user_pid) {
@@ -1957,7 +1964,7 @@ function content_model_viewer_remove_from_collection_choose_exit($pid, $value, $
     return TRUE;
   }
   else {
-    echo json_encode(array('success' => TRUE, 'msg' => t('Removed Relationship')));
+    echo json_encode(array('success' => TRUE, 'msg' => t('Removed Relationship'), 'top' => 100));
     exit();
   }
 }
@@ -2163,7 +2170,7 @@ function content_model_viewer_edit_metadata_form(array &$form_state, $pid) {
  */
 function content_model_viewer_edit_metadata_form_validate(array &$form, array &$form_state) {
   if ($form_state['storage']['step'] == 1) {
-    $form_state['storage']['step']++;
+    $form_state['storage']['step'] ++;
     $form_state['rebuild'] = TRUE;
   }
   else {
@@ -2315,180 +2322,6 @@ function content_model_viewer_edit_metadata_form_submit(array &$form, array &$fo
   $_SESSION['content_model_viewer_refresh_tree'] = $form_state['values']['pid']; // Yucky hac
   unset($_SESSION['messages']); // Don't display drupal messages to the user for this interface.
 }
-
-/**
- * added by SFOX
- * @param type $pid
- */
-function content_model_viewer_publish_dataset_form(array &$form_state, $pid) {
-  module_load_include('inc', 'islandora_content_model_forms', 'PublishObjectMetadataForm');
-  module_load_include('inc', 'fedora_repository', 'ConnectionHelper');
-  $connection_helper = new ConnectionHelper();
-  $client = $connection_helper->getSoapClient(variable_get('fedora_soap_url', 'http://localhost:8080/fedora/services/access?wsdl'));
-  try {
-    $edit_form = new PublishObjectMetadataForm();
-    $output = $edit_form->create($pid, $client, $form_state);
-    $output['which_action'] = array(
-      '#type' => 'hidden',
-      '#value' => 'edit'
-    );
-    return $output;
-  }
-  catch (Exception $e) {
-    $msg = "File: {$e->getFile()}<br/>Line: {$e->getLine()}<br/>Error: {$e->getMessage()}";
-    drupal_set_message($msg, 'error');
-    return array();
-  }
-}
-
-function content_model_viewer_publish_dataset_form_validate(array &$form, array &$form_state) {
-  if ($form_state['storage']['step'] == 2) { //This step is the license agreement screen
-    if ($form_state['values']['acceptlicense'] == 0) {
-    form_set_error('license agreement', 'You must agree to the license to proceed.');
-    $form_state['form_has_errors'] = TRUE;
-    }
-  }
-
-  if ($form_state['storage']['step'] < 3) {
-    $form_state['storage']['step'] ++;
-    $form_state['rebuild'] = TRUE;
-  }
-  else {
-    module_load_include('inc', 'xml_form_api', 'XMLForm');
-    $xml_form = new XMLForm($form_state);
-    $xml_form->validate($form, $form_state);
-  }
-}
-
-function content_model_viewer_publish_dataset_wizard_form_validate(array &$form, array &$form_state) {
-  module_load_include('inc', 'xml_form_api', 'XMLForm');
-  $xml_form = new XMLForm($form_state);
-  $xml_form->validate($form, $form_state);
-}
-
-//SFOX DTC-148
-function content_model_viewer_publish_dataset_wizard_form(array &$form_state, $pid) {
-  module_load_include('inc', 'islandora_content_model_forms', 'PublishObjectMetadataForm');
-  module_load_include('inc', 'fedora_repository', 'ConnectionHelper');
-  $current_pid = $pid = $_SESSION['current_pid'];
-  $last_pid = $_SESSION['last_pid'];
-  if (isset($_POST['op'])) {
-    $current_pid = $pid = $last_pid;
-  }
-  $output = NULL;
-  if (empty($current_pid) && is_array($_SESSION['pid_list'])) {
-    $pulled_pid = array_pop($_SESSION['pid_list']);
-    $current_pid = $pid = $pulled_pid;
-  }
-  if (!empty($current_pid)) {
-    $content_model_form_name = $_SESSION['content_model_form_name'];
-    $_SESSION['last_pid'] = $current_pid;
-    $_SESSION['current_pid'] = '';
-    if (empty($content_model_form_name)) {
-      $content_model_form_name = 'General Image Description'; //BBB REMOVE
-    }
-    $form_state['storage']['step'] = '2';
-    $form_state['storage']['xml'] = true;
-    $form_state['submitted'] = true;
-    $form_state['values']['form_id'] = 'content_model_viewer_publish_form';
-    $form_state['values']['op'] = 'Next';
-    $form_state['values']['submit'] = 'Next';
-    $form_state['values']['which_action'] = 'Publish';
-    $form_state['values']['forms'] = $content_model_form_name;
-    $form_state['post'] = array();
-    $form_state['post']['which_action'] = 'publish';
-    $form_state['#submit'][] = 'content_model_viewer_publish_wizard_form_submit';
-
-    $connection_helper = new ConnectionHelper();
-    $client = $connection_helper->getSoapClient(variable_get('fedora_soap_url', 'http://localhost:8080/fedora/services/access?wsdl'));
-    try {
-      $publish_form = new PublishObjectMetadataForm();
-      //var_dump($form_state);
-      $output = $publish_form->create($pid, $client, $form_state);
-
-      $output['which_action'] = array(
-        '#type' => 'hidden',
-        '#value' => 'publish'
-      );
-      $output['wiz_next'] = array(
-        '#type' => 'hidden',
-        '#value' => $_SESSION['pid_list'][0],
-      );
-      $output['#action'] = '/viewer/' . $pid . '/metadata_form';
-      //var_dump($output);
-      unset($_SESSION['messages']); // Don't display drupal messages to the user for this interface.
-    }
-    catch (Exception $e) {
-      $msg = "File: {$e->getFile()}<br/>Line: {$e->getLine()}<br/>Error: {$e->getMessage()}";
-      drupal_set_message($msg, 'error');
-      return array();
-    }
-  }
-  if ($_SESSION['wizard_finish']) {
-    //unset($_SESSION['pid_list']);
-    $_SESSION['wizard_finish'] = false;
-    $current_pid = NULL;
-    $output = NULL;
-  }
-  if (empty($current_pid)) {
-    $form_state['redirect'] = "viewer/{$form_state['values']['pid']}/overview";
-    $_SESSION['content_model_viewer_refresh_tree'] = $form_state['values']['pid']; // Yucky hac
-    unset($_SESSION['messages']); // Don't display drupal messages to the user for this interface.
-  }
-  if (!empty($output)) {
-    return $output;
-  }
-}
-
-//SFOX DTC-148
-function content_model_viewer_publish_dataset_wizard_form_submit(array &$form, array &$form_state) {
-  module_load_include('inc', 'islandora_content_model_forms', 'PublishObjectMetadataForm');
-  try {
-    $publish_form = new PublishObjectMetadataForm();
-    $publish_form->submit($form, $form_state);
-    $pid = $form_state['values']['pid'];
-    if (empty($_SESSION['initial_upload'])) {
-      //this edit form s used to batch create the metadata, and do editing we don't want to initially mark the metadata as edited
-      sidora_mark_as_metadata_complete($pid);
-    }
-  }
-  catch (Exception $e) {
-    $msg = "File: {$e->getFile()}<br/>Line: {$e->getLine()}<br/>Error: {$e->getMessage()}";
-    drupal_set_message($msg, 'error');
-  }
-  $_SESSION['next_pid'] = $_SESSION['pid_list'][0];
-  if (empty($_SESSION['next_pid'])) {
-    $form_state['redirect'] = "viewer/{$form_state['values']['pid']}/overview"; //BBB we'll see
-    $_SESSION['content_model_viewer_refresh_tree'] = $form_state['values']['pid'];
-  }
-  else {
-    $form_state['redirect'] = "viewer/{$form_state['values']['pid']}/wizard_step/" . $_SESSION['next_pid'];
-  }
-  unset($_SESSION['messages']); // Don't display drupal messages to the user for this interface.
-}
-
-/**
- * Submit  Form.
- *
- * @param array $form
- * @param array $form_state
- */
-function content_model_viewer_publish_dataset_form_submit(array &$form, array &$form_state) {
-  module_load_include('inc', 'islandora_content_model_forms', 'PublishObjectMetadataForm');
-  try {
-    $edit_form = new PublishObjectMetadataForm();
-    $edit_form->submit($form, $form_state);
-  }
-  catch (Exception $e) {
-    $msg = "File: {$e->getFile()}<br/>Line: {$e->getLine()}<br/>Error: {$e->getMessage()}";
-    drupal_set_message($msg, 'error');
-  }
-  $form_state['redirect'] = "viewer/{$form_state['values']['pid']}/overview";
-  $_SESSION['content_model_viewer_refresh_tree'] = $form_state['values']['pid']; // Yucky hac
-  unset($_SESSION['messages']); // Don't display drupal messages to the user for this interface.
-}
-
-//SFOX
 
 function content_model_viewer_ingest_concept_metadata_form(array &$form_state, $collection_pid) {
   return fedora_repository_ingest_form($form_state, $collection_pid);

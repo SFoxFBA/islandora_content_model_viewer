@@ -51,7 +51,13 @@ class Tree {
     }
     else {
       $serialized_data = unserialize($user->data);
-      $this->root = $serialized_data['islandora_user_pid'];
+      //SFOX DTC-163 Repository managers should be able to see all user's objects
+      if (in_array('FBA Sidora Repository Manager', $user->roles)) {
+        $this->root = 'fba:user-projects';
+      }
+      else {
+        $this->root = $serialized_data['islandora_user_pid'];
+      } //SFOX DTC-163
     }
   }
 
