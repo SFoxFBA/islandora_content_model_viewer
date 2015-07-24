@@ -1569,19 +1569,19 @@ function content_model_viewer_purge_object_choose_exit($pid, $shouldEchoAndExit)
     $repo = tuque_wrapper_get_repository_instance();
 
 
-    // @todo Remove THIS SHIT!!!!!!!! Replace with tuque stuff.o
+    // @todo Remove THIS !!!!!!!! Replace with tuque stuff.o
     try {
       $description = $repo->api->a->describeRepository();
       $object = $repo->getObject($pid);
 
-      $resourcerdfs = sidora_return_forward_fba_resource_rdfs();
+      $resourcerdfs = sidora_return_fba_resource_rdfs();
       foreach ($resourcerdfs as $key => $keyvalue) {
         $concept = $object->relationships->get(RELS_EXT_URI, $keyvalue); //SFox was "hasConcept"
         if ($concept) {
           $children_concepts[] = $concept;
         }
       }
-      $conceptrdfs = sidora_return_forward_fba_concept_rdfs();
+      $conceptrdfs = sidora_return_fba_concept_rdfs();
       foreach ($conceptrdfs as $key => $keyvalue) {
         $resource = $object->relationships->get(RELS_EXT_URI, $keyvalue); //SFox was 'hasResource'
         if ($resource) {

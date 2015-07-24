@@ -119,7 +119,7 @@ class Collection {
     $search = isset($filter[0]->value) ? trim($filter[0]->value) : NULL;
 
     //SFOX DTC-148 publication process
-    $resourcerdfs = sidora_return_forward_fba_resource_rdfs();
+    $resourcerdfs = sidora_return_fba_resource_rdfs();
     $arraycount = count($resourcerdfs);
     $query = "select ?object ?title ?model ?created from <#ri> where {";
     $query .= " ?object <fedora-model:state> <fedora-model:Active>;
@@ -142,7 +142,7 @@ class Collection {
 
     if (isset($search) && $search != '') {
       //SFOX
-      $resourcerdfs = sidora_return_forward_fba_resource_rdfs();
+      $resourcerdfs = sidora_return_fba_resource_rdfs();
       $arraycount = count($resourcerdfs);
 
       $query = "select ?object ?title ?model ?created from <#ri> where {";
@@ -186,7 +186,7 @@ class Collection {
         sidora_performance_monitor_start("f:getTreeMembers");
 
       //SFOX hasConcept has been replaced by individual class (concept) RDFs
-      $conceptrdfs = sidora_return_forward_fba_concept_rdfs();
+      $conceptrdfs = sidora_return_fba_concept_rdfs();
 
       $child_concepts = 'count(select $concept from <#ri> where ';
       //$child_concepts .= '$object <fedora-rels-ext:hasConcept> $concept'; SFOX original line
@@ -205,7 +205,7 @@ class Collection {
       $child_concepts .= 'and $concept <fedora-model:state> <fedora-model:Active>)';
       //
       //SFOX hasResource has been replaced by individual class (resource) RDFs
-      $resourcerdfs = sidora_return_forward_fba_resource_rdfs();
+      $resourcerdfs = sidora_return_fba_resource_rdfs();
       $child_resources = 'count(select $resource from <#ri> where ';
 
       //$child_resources .= '$object <fedora-rels-ext:hasResource> $resource '; SFOX original line
@@ -304,7 +304,7 @@ class Collection {
 // Counts resources.
   public function getChildCount($pid) {
 	//SFOX hasConcept has been replaced by individual class (concept) RDFs, same for hasResource
-    $resourcerdfs = sidora_return_forward_fba_resource_rdfs();
+    $resourcerdfs = sidora_return_fba_resource_rdfs();
 	//$resourcecount = count($conceptrdfs);
 
     $count = 'count(select $pid from <#ri> where $pid <fedora-model:state> <fedora-model:Active> and (';
@@ -314,7 +314,7 @@ class Collection {
       $count .= ' or ';
     }
 	//$count .= '$object <fedora-rels-ext:hasConcept> $pid'; SFOX original line
-    $conceptrdfs = sidora_return_forward_fba_concept_rdfs();
+    $conceptrdfs = sidora_return_fba_concept_rdfs();
     $conceptcount = count($conceptrdfs);
     foreach ($conceptrdfs as $key => $keyvalue) {
       $count .= '$object <fedora-rels-ext:hasConcept> $pid';
@@ -347,7 +347,7 @@ class Collection {
   public function getChildCountOfResources($pid) {
 
     //SFOX hasConcept has been replaced by individual class (concept) RDFs
-    $resourcerdfs = sidora_return_forward_fba_resource_rdfs();
+    $resourcerdfs = sidora_return_fba_resource_rdfs();
     $arraycount = count($resourcerdfs);
 
     $count = 'count(select $pid from <#ri> where $pid <fedora-model:state> <fedora-model:Active> and ';
@@ -786,11 +786,11 @@ class Collection {
       'fba:synthesis_cmodel' => 'Synthesis',
       'fba:litreview_cmodel' => 'Literature Review',
       'fba:supp_basic_image_cmodel' => 'Image',
-      'fba:supp_large_image_cmodel' => 'Large Image',
       'fba:supp_pdf_cmodel' => 'PDF',
       'fba:supp_text_cmodel' => 'Text',
       'fba:supp_excel_cmodel' => 'Excel',
       'fba:supp_word_cmodel' => 'Word',
+      //'fba:supp_large_image_cmodel' => 'Large Image',
     );
     $object_helper = new ObjectHelper();
     $content_models = $object_helper->get_content_models_list($pid);
