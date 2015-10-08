@@ -9,10 +9,12 @@
  *
  */
 class Collection {
+
   /**
    * 12 characters in "info:fedora/"
    */
   const MODEL_PREFIX_LENGTH = 12;
+
   /**
    * The definitive collection model, an object is considered a collection if it has this as a model
    * or its parent model has this as a model.
@@ -112,6 +114,8 @@ class Collection {
    * @return array
    */
   public function getMembers() {
+    module_load_include('inc', 'fedora_repository', 'api/fedora_item'); //needed for FBA_URI
+
     $offset = isset($_REQUEST['start']) ? $_REQUEST['start'] : 0;
     $limit = isset($_REQUEST['limit']) ? $_REQUEST['limit'] : 5;
     $filter = isset($_REQUEST['filter']) ? json_decode($_REQUEST['filter']) : $this->default['filter'];
@@ -128,8 +132,17 @@ class Collection {
       <fedora-model:createdDate> ?created;
       FILTER(!sameTerm(?model, <info:fedora/fedora-system:FedoraObject-3.0>) &&
            !sameTerm(?model, <info:fedora/si:resourceCModel>))";
+    //Pre repair script
     foreach ($resourcerdfs as $key => $keyvalue) {
       $query.= "{<info:fedora/{$this->pid}> <fedora-rels-ext:" . $keyvalue . "> ?object}";
+      if ($key < $arraycount - 1) { //as arraycounts don't start at zero
+        $query .= ' UNION ';
+      }
+    }
+    //Post repair script
+    $query .= ' UNION ';
+    foreach ($resourcerdfs as $key => $keyvalue) {
+      $query.= "{<info:fedora/{$this->pid}> <" . FBA_URI . $keyvalue . "> ?object}";
       if ($key < $arraycount - 1) { //as arraycounts don't start at zero
         $query .= ' UNION ';
       }
@@ -146,8 +159,17 @@ class Collection {
       $arraycount = count($resourcerdfs);
 
       $query = "select ?object ?title ?model ?created from <#ri> where {";
+      //Pre repair script
       foreach ($resourcerdfs as $key => $keyvalue) {
         $query .= "{<info:fedora/{$this->pid}> <fedora-rels-ext:" . $keyvalue . "> ?object}";
+        if ($key < $arraycount - 1) { //as arraycounts don't start at zero
+          $query .= ' UNION ';
+        }
+      }
+      //Post repair script
+      $query .= ' UNION ';
+      foreach ($resourcerdfs as $key => $keyvalue) {
+        $query .= "{<info:fedora/{$this->pid}> <" . FBA_URI . $keyvalue . "> ?object}";
         if ($key < $arraycount - 1) { //as arraycounts don't start at zero
           $query .= ' UNION ';
         }
@@ -180,6 +202,8 @@ class Collection {
 
   public function getTreeMembers() {
     global $base_url;
+    module_load_include('inc', 'fedora_repository', 'api/fedora_item'); //for FBA_URI
+
     $getMembersThroughSparql = true;
     if ($getMembersThroughSparql) {
       if (module_exists('sidora_performance_monitor'))
@@ -194,6 +218,17 @@ class Collection {
       $child_concepts .= '(';
       foreach ($conceptrdfs as $key => $keyvalue) {
         $child_concepts .= '$object <fedora-rels-ext:' . $keyvalue . '> $concept';
+        if ($key < $arraycount - 1) { //as arraycounts don't start at zero
+          $child_concepts .= ' or ';
+        }
+        else {
+          //$child_concepts .= ') ';
+        }
+      }
+      //Post Repair script
+      $child_concepts .= ' or ';
+      foreach ($conceptrdfs as $key => $keyvalue) {
+        $child_concepts .= '$object <' . FBA_URI . $keyvalue . '> $concept';
         if ($key < $arraycount - 1) { //as arraycounts don't start at zero
           $child_concepts .= ' or ';
         }
@@ -217,9 +252,21 @@ class Collection {
           $child_resources .= ' or ';
         }
         else {
+          //$child_resources .= ') ';
+        }
+      }
+      //Post Repair script
+      $child_resources .= ' or ';
+      foreach ($resourcerdfs as $key => $keyvalue) {
+        $child_resources .= '$object <' . FBA_URI . $keyvalue . '> $resource';
+        if ($key < $arraycount - 1) { //as arraycounts don't start at zero
+          $child_resources .= ' or ';
+        }
+        else {
           $child_resources .= ') ';
         }
       }
+
       $child_resources .= 'and $resource <fedora-model:state> <fedora-model:Active>)';
 
       $query = 'select $object $title $model $created ' . $child_concepts . ' ' . $child_resources . ' from <#ri> where';
@@ -228,8 +275,20 @@ class Collection {
       $arraycount = count($conceptrdfs);
       $query .= '(';
       foreach ($conceptrdfs as $key => $keyvalue) {
-      //$query .= '<info:fedora/' . $this->pid . '> <fedora-rels-ext:hasConcept> $object';  SFOX Original line
+        //$query .= '<info:fedora/' . $this->pid . '> <fedora-rels-ext:hasConcept> $object';  SFOX Original line
         $query .= '<info:fedora/' . $this->pid . '> <fedora-rels-ext:' . $keyvalue . '> $object';
+        if ($key < $arraycount - 1) { //as arraycounts don't start at zero
+          $query .= ' or ';
+        }
+        else {
+          //$query .= ') ';
+        }
+      }
+      //Post repair script
+      $query .= ' or ';
+      foreach ($conceptrdfs as $key => $keyvalue) {
+        //$query .= '<info:fedora/' . $this->pid . '> <fedora-rels-ext:hasConcept> $object';  SFOX Original line
+        $query .= '<info:fedora/' . $this->pid . '> <' . FBA_URI . $keyvalue . '> $object';
         if ($key < $arraycount - 1) { //as arraycounts don't start at zero
           $query .= ' or ';
         }
@@ -258,7 +317,7 @@ class Collection {
       if (module_exists('sidora_performance_monitor'))
         sidora_performance_monitor_write_out("f:getTreeMembers", "tree member query and populate");
     } else {
-	  //SFOX processing will never get to here!!!
+      //SFOX processing will never get to here!!!
       module_load_include('inc', 'fedora_repository', 'api/fedora_item');
       $item = new Fedora_Item($this->pid);
       $rels_ext = $item->get_datastream_dissemination('RELS-EXT');
@@ -303,17 +362,17 @@ class Collection {
 
 // Counts resources.
   public function getChildCount($pid) {
-	//SFOX hasConcept has been replaced by individual class (concept) RDFs, same for hasResource
+    //SFOX hasConcept has been replaced by individual class (concept) RDFs, same for hasResource
     $resourcerdfs = sidora_return_fba_resource_rdfs();
-	//$resourcecount = count($conceptrdfs);
+    //$resourcecount = count($conceptrdfs);
 
     $count = 'count(select $pid from <#ri> where $pid <fedora-model:state> <fedora-model:Active> and (';
-	//$count .= '$object <fedora-rels-ext:hasResource> $pid'; SFOX original line
+    //$count .= '$object <fedora-rels-ext:hasResource> $pid'; SFOX original line
     foreach ($resourcerdfs as $key => $keyvalue) {
       $count .= '$object <fedora-rels-ext:' . $keyvalue . '> $pid';
       $count .= ' or ';
     }
-	//$count .= '$object <fedora-rels-ext:hasConcept> $pid'; SFOX original line
+    //$count .= '$object <fedora-rels-ext:hasConcept> $pid'; SFOX original line
     $conceptrdfs = sidora_return_fba_concept_rdfs();
     $conceptcount = count($conceptrdfs);
     foreach ($conceptrdfs as $key => $keyvalue) {
@@ -352,8 +411,17 @@ class Collection {
 
     $count = 'count(select $pid from <#ri> where $pid <fedora-model:state> <fedora-model:Active> and ';
     //$count .='$object <fedora-rels-ext:hasResource> $pid'  SFOX original line
+    //Pre repair script
     foreach ($resourcerdfs as $key => $keyvalue) {
       $count .='$object <fedora-rels-ext:' . $keyvalue . '> $pid';
+      if ($key < $arraycount - 1) { //as arraycounts don't start at zero
+        $count .= ' or ';
+      }
+    }
+    //Post repair script
+    $count .= ' or ';
+    foreach ($resourcerdfs as $key => $keyvalue) {
+      $count .='$object <' . FBA_URI . $keyvalue . '> $pid';
       if ($key < $arraycount - 1) { //as arraycounts don't start at zero
         $count .= ' or ';
       }
@@ -790,7 +858,7 @@ class Collection {
       'fba:supp_text_cmodel' => 'Text',
       'fba:supp_excel_cmodel' => 'Excel',
       'fba:supp_word_cmodel' => 'Word',
-      //'fba:supp_large_image_cmodel' => 'Large Image',
+        //'fba:supp_large_image_cmodel' => 'Large Image',
     );
     $object_helper = new ObjectHelper();
     $content_models = $object_helper->get_content_models_list($pid);

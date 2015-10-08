@@ -104,7 +104,9 @@ ContentModelViewer.setup.initProperties = function () {
       datastreams: url_replace_pid_func('#object_datastreams_url'),
       permission_form: url_replace_pid_func('#object_permission_form_url'),
       metadata_form: url_replace_pid_func('#object_metadata_form_url'),
-            publish_form: url_replace_pid_func('#object_publish_form_url'), //SFOX DTC-148
+      publish_form: url_replace_pid_func('#object_publish_form_url'), //SFOX DTC-148
+      manage_form: url_replace_pid_func('#object_manage_form_url'),
+      delete_form: url_replace_pid_func('#object_delete_form_url'),
       members: url_replace_pid_func('#object_members_url'),
       treemembers: url_replace_pid_func('#object_treemembers_url'),
       treemember: url_replace_pid_func('#object_treemember_url'),
@@ -348,6 +350,34 @@ ContentModelViewer.setup.defineFunctions = function() {
             });
         },
         //
+        loadDatacompManageForm: function() {
+            var cmv, data;
+            cmv = this;
+            Ext.getCmp('cmvtabpanel').getComponent('resource-overview').loadManageFilesContent('#datacomp-manage-form form', function(loader, response, options) {
+                if (typeof response.responseText !== 'undefined') {
+                    data = JSON.parse(response.responseText);
+                    if (data.refresh) {
+                        cmv.refreshResource();
+                        cmv.refreshResources();
+                        cmv.refreshTreeNodes(ContentModelViewer.properties.pids.concept); // Update the object we were previously on
+                    }
+                }
+            });
+        },
+        loadDatacompDeleteForm: function() {
+            var cmv, data;
+            cmv = this;
+            Ext.getCmp('cmvtabpanel').getComponent('resource-overview').loadDeleteFilesContent('#datacomp-delete-form form', function(loader, response, options) {
+                if (typeof response.responseText !== 'undefined') {
+                    data = JSON.parse(response.responseText);
+                    if (data.refresh) {
+                        cmv.refreshResource();
+                        cmv.refreshResources();
+                        cmv.refreshTreeNodes(ContentModelViewer.properties.pids.concept); // Update the object we were previously on
+                    }
+                }
+            });
+        },
         loadResourceEditPermissionForm: function() {
             Ext.getCmp('cmvtabpanel').getComponent('resource-overview').loadEditPermissionContent('#resource-permission-form form');
         },

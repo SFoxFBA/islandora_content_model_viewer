@@ -103,13 +103,13 @@ function content_model_viewer_publish_dataset_form_validate(array &$form, array 
 }
 
 /**
- * Submit Ingest Form.
+ * Submit Form.
  *
  * @param array $form
  * @param array $form_state
  */
 function content_model_viewer_publish_dataset_form_submit(array &$form, array &$form_state) {
-  module_load_include('inc', 'islandora_content_model_forms', 'IngestObjectMetadataForm');
+  module_load_include('inc', 'islandora_content_model_forms', 'PublishObjectMetadataForm');
   if ($form_state['storage']['step'] == 2) {
     $ingest_form = new PublishObjectMetadataForm();
     $ingest_form->submit($form, $form_state);
@@ -198,7 +198,7 @@ function content_model_viewer_publish_dataset_wizard_form(array &$form_state, $p
         '#type' => 'hidden',
         '#value' => $_SESSION['pid_list'][0],
       );
-      $output['#action'] = '/viewer/' . $pid . '/metadata_form';
+      $output['#action'] = '/viewer/' . $pid . '/publish_form';
       //var_dump($output);
       unset($_SESSION['messages']); // Don't display drupal messages to the user for this interface.
     }

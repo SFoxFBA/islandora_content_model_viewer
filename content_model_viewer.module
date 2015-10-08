@@ -7,6 +7,8 @@
  */
 module_load_include('inc', 'content_model_viewer', 'content_model_viewer.db'); // Helper functions/constants for database.
 include_once drupal_get_path('module', 'content_model_viewer') . '/content_model_viewer_publish.inc';
+include_once drupal_get_path('module', 'content_model_viewer') . '/content_model_viewer_manage.inc';
+include_once drupal_get_path('module', 'content_model_viewer') . '/content_model_viewer_delete.inc';
 
 /**
  * Constants
@@ -20,6 +22,8 @@ define("PERM_CONTENT_MODEL_VIEWER_DOWNLOAD_DATASTREAMS", 'Download Datastreams')
 define("PERM_CONTENT_MODEL_VIEWER_MODIFY_DATASTREAM_PROPERTIES", 'Modify Datastream Properties');
 define("PERM_CONTENT_MODEL_VIEWER_PUBLISH_DATASTREAM_PROPERTIES", 'Publish Datastream'); //SFOX DTC-148
 define("PERM_CONTENT_MODEL_VIEWER_REPOSITORY_MANAGER", 'Repository Manager'); //SFOX DTC-163
+define("PERM_CONTENT_MODEL_VIEWER_MANAGE_FILES_PROPERTIES", 'Add Uploaded Files');
+define("PERM_CONTENT_MODEL_VIEWER_DELETE_FILES_PROPERTIES", 'Delete Uploaded Files');
 
 /**
  * Implements Menu Hook. Registers Menus.
@@ -106,8 +110,20 @@ function content_model_viewer_menu() {
   );
   //SFOX DTC-148
   $items['viewer/publish_form'] = array(
-    'page callback' => 'content_model_publish_dataset_form',
+    'page callback' => 'content_model_viewer_publish_dataset_form',
     'access arguments' => array(PERM_CONTENT_MODEL_VIEWER_PUBLISH_DATASTREAM_PROPERTIES),
+    'type' => MENU_CALLBACK,
+  );
+  $items['viewer/%/manage_form'] = array(
+    'page callback' => 'content_model_viewer_manage_form',
+    'page arguments' => array(1),
+    'access arguments' => array(PERM_CONTENT_MODEL_VIEWER_MANAGE_FILES_PROPERTIES),
+    'type' => MENU_CALLBACK,
+  );
+  $items['viewer/%/delete_form'] = array(
+    'page callback' => 'content_model_viewer_delete_form',
+    'page arguments' => array(1),
+    'access arguments' => array(PERM_CONTENT_MODEL_VIEWER_DELETE_FILES_PROPERTIES),
     'type' => MENU_CALLBACK,
   );
   $items['viewer/source/%/dest/%/move/%'] = array(
@@ -273,6 +289,7 @@ function content_model_viewer_upload($form_id) {
   $filePath = $targetDir . DIRECTORY_SEPARATOR . $fileName;
   $file_info->filepath = $filePath; //$base_path . 'sites/all' .$filePath;
   $_SESSION['file_uploads'][$form_id][] = $file_info;
+  $_SESSION['sidora_file_sessionid'] = $form_id;
 // Chunking might be enabled
   $chunk = isset($_REQUEST["chunk"]) ? intval($_REQUEST["chunk"]) : 0;
   $chunks = isset($_REQUEST["chunks"]) ? intval($_REQUEST["chunks"]) : 0;
@@ -349,7 +366,9 @@ function content_model_viewer_perm() {
     PERM_CONTENT_MODEL_VIEWER_DOWNLOAD_DATASTREAMS,
     PERM_CONTENT_MODEL_VIEWER_MODIFY_DATASTREAM_PROPERTIES,
     PERM_CONTENT_MODEL_VIEWER_PUBLISH_DATASTREAM_PROPERTIES, //DTC-148
-    PERM_CONTENT_MODEL_VIEWER_REPOSITORY_MANAGER //SFOX DTC-163
+    PERM_CONTENT_MODEL_VIEWER_REPOSITORY_MANAGER, //SFOX DTC-163
+    PERM_CONTENT_MODEL_VIEWER_MANAGE_FILES_PROPERTIES,
+    PERM_CONTENT_MODEL_VIEWER_DELETE_FILES_PROPERTIES,
   );
 }
 
@@ -373,6 +392,14 @@ function content_model_viewer_theme() {
       'template' => 'Form',
     ),
     'content_model_viewer_publish_form' => array(//SFOX DTC-148
+      'arguments' => array('wrapper_id' => NULL, 'pid' => NULL, 'action' => NULL),
+      'template' => 'Form',
+    ),
+    'content_model_viewer_manage_form' => array(//SFOX 
+      'arguments' => array('wrapper_id' => NULL, 'pid' => NULL, 'action' => NULL),
+      'template' => 'Form',
+    ),
+    'content_model_viewer_delete_form' => array(//SFOX 
       'arguments' => array('wrapper_id' => NULL, 'pid' => NULL, 'action' => NULL),
       'template' => 'Form',
     ),
@@ -451,8 +478,14 @@ window.uploader = new plupload.Uploader({
 	container: document.getElementById("container"), // ... or DOM Element itself
 	url : "';
   print base_path();
-  print 'viewer/upload/"+jQuery("#content-model-viewer-ingest-resource-metadata-form").find("input[name=form_build_id]").val(),
-	flash_swf_url : "';
+  if ($elements['#form_build_id']) {
+    $formbuildid = $elements['#form_build_id'];
+    print 'viewer/upload/' . $formbuildid . '", flash_swf_url : "';
+  }
+  else {
+    print 'viewer/upload/"+jQuery("#content-model-viewer-ingest-resource-metadata-form").find("input[name=form_build_id]").val(),
+  flash_swf_url : "';
+  }
   print base_path();
   print 'sites/all/modules/islandora_content_model_viewer/plupload-2.1.2/js/Moxie.swf",
 	silverlight_xap_url : "';
@@ -865,6 +898,8 @@ function template_preprocess_content_model_viewer_iframe(array &$variables) {
       'permission_form' => "viewer/pid/permission_form",
       'metadata_form' => "viewer/pid/metadata_form",
       'publish_form' => "viewer/pid/publish_form", //SFOX DTC-148
+      'manage_form' => "viewer/pid/manage_form",
+      'delete_form' => "viewer/pid/delete_form",
       'remove_relationship' => "viewer/pid/collection/remove/dsid", // Hack the dsid will be a pid actually
       'members' => "viewer/pid/members",
       'treemembers' => "viewer/pid/treemembers",
@@ -995,7 +1030,9 @@ function content_model_viewer_iframe($pid = NULL) {
     PERM_CONTENT_MODEL_VIEWER_PURGE_DATASTREAMS,
     PERM_CONTENT_MODEL_VIEWER_MODIFY_DATASTREAM_PROPERTIES,
     PERM_CONTENT_MODEL_VIEWER_PUBLISH_DATASTREAM_PROPERTIES, //SFOX DTC-148
-    PERM_CONTENT_MODEL_VIEWER_REPOSITORY_MANAGER //SFOX DTC-163
+    PERM_CONTENT_MODEL_VIEWER_REPOSITORY_MANAGER, //SFOX DTC-163
+    PERM_CONTENT_MODEL_VIEWER_MANAGE_FILES_PROPERTIES,
+    PERM_CONTENT_MODEL_VIEWER_DELETE_FILES_PROPERTIES,
   );
 
   $show_manage_panel = FALSE;
@@ -1215,6 +1252,80 @@ function content_model_viewer_publish_form($pid, $action = 'edit') {
   }
   else {
     $data = theme('content_model_viewer_publish_form', $id, $pid, 'publish');
+  }
+  $javascript = drupal_add_js(NULL, NULL, 'header');
+  $settings = $javascript['setting'];
+  if (isset($settings)) {
+    $settings = call_user_func_array('array_merge_recursive', $javascript['setting']);
+    unset($settings['ahah']['']);
+  }
+  $js = $javascript['module'];
+  $query_string = '?' . substr(variable_get('css_js_query_string', '0'), 0, 1);
+  $files = array();
+  foreach ($js as $path => $properties) {
+    $files[] = base_path() . $path . ($properties['cache'] ? $query_string : '?' . time());
+  }
+  $css_files = array();
+  $css = content_model_viewer_grab_css();
+  foreach ($css['all'] as $group) {
+    foreach ($group as $path => $bool) {
+      $css_files[] = base_path() . $path . $query_string;
+    }
+  }
+  header("Content-type: application/json");
+  echo json_encode(array('success' => TRUE, 'data' => $data, 'func' => NULL, 'settings' => $settings, 'js' => $files, 'css' => $css_files, 'refresh' => $refresh));
+  exit();
+}
+
+function content_model_viewer_manage_form($pid, $action = 'manage') {
+  $cmodels = content_model_viewer_get_cmodels($pid);
+  //$id = in_array('islandora:collectionCModel', $cmodels) ? 'concept-metadata-form' : 'resource-metadata-form';
+  $id = 'datacomp-manage-form';
+
+  $wizard_finish = $_POST['wizard_finish'];
+  $_SESSION['wizard_finish'] = $wizard_finish;
+  if ($_POST['wizard_check'] == TRUE && $_POST['form_id'] == 'content_model_viewer_manage_wizard_form') {
+    $data = theme('content_model_viewer_manage_form', $id, $pid, 'wizard-meta');
+  }
+  else {
+    $data = theme('content_model_viewer_manage_form', $id, $pid, 'manage');
+  }
+  $javascript = drupal_add_js(NULL, NULL, 'header');
+  $settings = $javascript['setting'];
+  if (isset($settings)) {
+    $settings = call_user_func_array('array_merge_recursive', $javascript['setting']);
+    unset($settings['ahah']['']);
+  }
+  $js = $javascript['module'];
+  $query_string = '?' . substr(variable_get('css_js_query_string', '0'), 0, 1);
+  $files = array();
+  foreach ($js as $path => $properties) {
+    $files[] = base_path() . $path . ($properties['cache'] ? $query_string : '?' . time());
+  }
+  $css_files = array();
+  $css = content_model_viewer_grab_css();
+  foreach ($css['all'] as $group) {
+    foreach ($group as $path => $bool) {
+      $css_files[] = base_path() . $path . $query_string;
+    }
+  }
+  header("Content-type: application/json");
+  echo json_encode(array('success' => TRUE, 'data' => $data, 'func' => NULL, 'settings' => $settings, 'js' => $files, 'css' => $css_files, 'refresh' => $refresh));
+  exit();
+}
+
+function content_model_viewer_delete_form($pid, $action = 'deletefiles') {
+  $cmodels = content_model_viewer_get_cmodels($pid);
+  //$id = in_array('islandora:collectionCModel', $cmodels) ? 'concept-metadata-form' : 'resource-metadata-form';
+  $id = 'datacomp-delete-form';
+
+  $wizard_finish = $_POST['wizard_finish'];
+  $_SESSION['wizard_finish'] = $wizard_finish;
+  if ($_POST['wizard_check'] == TRUE && $_POST['form_id'] == 'content_model_viewer_delete_wizard_form') {
+    $data = theme('content_model_viewer_delete_form', $id, $pid, 'wizard-meta');
+  }
+  else {
+    $data = theme('content_model_viewer_delete_form', $id, $pid, 'deletefiles');
   }
   $javascript = drupal_add_js(NULL, NULL, 'header');
   $settings = $javascript['setting'];
@@ -1576,14 +1687,14 @@ function content_model_viewer_purge_object_choose_exit($pid, $shouldEchoAndExit)
 
       $resourcerdfs = sidora_return_fba_resource_rdfs();
       foreach ($resourcerdfs as $key => $keyvalue) {
-        $concept = $object->relationships->get(RELS_EXT_URI, $keyvalue); //SFox was "hasConcept"
+        $concept = $object->relationships->get(FBA_URI, $keyvalue); //SFox was "hasConcept"
         if ($concept) {
           $children_concepts[] = $concept;
         }
       }
       $conceptrdfs = sidora_return_fba_concept_rdfs();
       foreach ($conceptrdfs as $key => $keyvalue) {
-        $resource = $object->relationships->get(RELS_EXT_URI, $keyvalue); //SFox was 'hasResource'
+        $resource = $object->relationships->get(FBA_URI, $keyvalue); //SFox was 'hasResource'
         if ($resource) {
           $children_resources[] = $resource;
         }
@@ -1964,7 +2075,7 @@ function content_model_viewer_remove_from_collection_choose_exit($pid, $value, $
     return TRUE;
   }
   else {
-    echo json_encode(array('success' => TRUE, 'msg' => t('Removed Relationship'), 'top' => 100));
+    echo json_encode(array('success' => TRUE, 'msg' => t('Removed Relationship')));
     exit();
   }
 }

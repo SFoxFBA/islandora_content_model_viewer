@@ -113,6 +113,12 @@ Ext.onReady(function () {
     loadPublishMetadataContent: function (form_selector, success) {
       this.loadContent(ContentModelViewer.properties.url.object.publish_form(this.pid), this.getFormParams(form_selector), success);
     },
+    loadManageFilesContent: function (form_selector, success) {
+      this.loadContent(ContentModelViewer.properties.url.object.manage_form(this.pid), this.getFormParams(form_selector), success);
+    },
+    loadDeleteFilesContent: function (form_selector, success) {
+      this.loadContent(ContentModelViewer.properties.url.object.delete_form(this.pid), this.getFormParams(form_selector), success);
+    },
     setPid: function (pid) {
       this.pid = pid;
       this.refresh();

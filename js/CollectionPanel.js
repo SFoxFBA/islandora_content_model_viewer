@@ -19,9 +19,9 @@ Ext.onReady(function () {
         //        '    <span class="incompleteMeta" title="Metadata incomplete"></span>',
                 '    <input class="resourceBatchSelector" type="checkbox" style="display:none;float:left;height:100%" name="{pid}"/>',
                 '    <span style="float:left;text-align:center">',
-               '     <img class="member-item-img" src="{tn}"></img>',
+                '     <img class="member-item-img" src="{tn}"></img>',
                 '    </span>',
-                '    <div class="member-item-label">{label}</div>',
+                '    <div class="member-item-label" style="height:16px;">{label}</div>', //SFOX Horrible bodge to fix css error in chrome/IE
                 '   </div>',
         //        ' </tpl>',
         //        ' <tpl if="!originalMetadata">',
