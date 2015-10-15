@@ -63,7 +63,7 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
                     //SFOX disable drag n drop for now
                     //var dragPids = resourcePids;
           var parentPids = ContentModelViewer.properties.pids.concept;
-                    //SFOX changed from resource
+          //SFOX changed from resource
                     //SFOX disable drag n drop for now
                     //var draggedTypeName = "data component(s)";
           var additionalMessage = "";
@@ -73,8 +73,8 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
              isDraggingConcepts = true;
              isDraggingResources = false;
              dragPids = conceptPids;
-                        //SFOX changed from concept
-                        draggedTypeName = "class(es)";
+             //SFOX changed from concept
+             draggedTypeName = "class(es)";
              parentPids = getTreeSelectedParents();
              //Check to see if the concept is dragged to its current parent
              var selectedThatHaveParentAsDropTarget = getTreeSelected(true,null,dropPid);
@@ -310,7 +310,7 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
               if (ContentModelViewer.properties.siUser) {
                 pid = ContentModelViewer.properties.siUser;
               } else {
-                                pid = 'fba:root';
+                pid = 'fba:root';
               }
             }
             ContentModelViewer.functions.selectConcept(pid);
@@ -363,7 +363,7 @@ Ext.define('ContentModelViewer.widgets.TreePanel', {
             if (ContentModelViewer.properties.siUser) {
               pid = ContentModelViewer.properties.siUser;
             } else {
-                        pid = 'fba:root';
+              pid = 'fba:root';
             }
           }
           ContentModelViewer.functions.selectConcept(pid);
