@@ -11,7 +11,7 @@ function content_model_viewer_publish_dataset_form(array &$form_state, $collecti
     // Queries the collection object for a child security datastream and if found parses it
     // to determine if this user is allowed to ingest in this collection
     // we assume if they are able to modify objects in the collection they can ingest as well.
-    drupal_set_message(t('You do not have premission to ingest here.'));
+    drupal_set_message(t('You do not have permission to ingest here.'));
     return FALSE;
   }
   if ($collection_pid == NULL) {

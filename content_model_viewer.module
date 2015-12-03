@@ -227,9 +227,8 @@ function content_model_viewer_menu() {
 }
 
 function content_model_viewer_upload($form_id) {
-
-//upload for plupload
-// Make sure file is not cached (as it happens for example on iOS devices)
+  //upload for plupload
+  // Make sure file is not cached (as it happens for example on iOS devices)
   header("Expires: Mon, 26 Jul 1997 05:00:00 GMT");
   header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
   header("Cache-Control: no-store, no-cache, must-revalidate");
@@ -245,26 +244,26 @@ function content_model_viewer_upload($form_id) {
     }
    */
 
-// 5 minutes execution time
+  // 5 minutes execution time
   @set_time_limit(5 * 60);
 
-// Uncomment this one to fake upload time
-// usleep(5000);
-// Settings
+  // Uncomment this one to fake upload time
+  // usleep(5000);
+  // Settings
   $targetDir = file_directory_temp();
-//$targetDir = 'uploads';
+  //$targetDir = 'uploads';
   $cleanupTargetDir = false; // Remove old files
   $maxFileAge = 5 * 3600; // Temp file age in seconds
-// Create target dir
+  // Create target dir
   if (!file_exists($targetDir)) {
     @mkdir($targetDir);
   }
 
-// Get a file name
+  // Get a file name
   $file_info = new stdClass();
 
   if (isset($_REQUEST["name"])) {
-//	$fileName = $_REQUEST["name"];
+  //	$fileName = $_REQUEST["name"];
     $file_info->filename = $_REQUEST["name"];
   }
   elseif (!empty($_FILES)) {
@@ -280,21 +279,15 @@ function content_model_viewer_upload($form_id) {
     global $base_path;
     print $base_path;
    */
-  if (isset($_SESSION['file_uploads'])) {
-    
-  }
-  else {
-    
-  }
   $filePath = $targetDir . DIRECTORY_SEPARATOR . $fileName;
   $file_info->filepath = $filePath; //$base_path . 'sites/all' .$filePath;
   $_SESSION['file_uploads'][$form_id][] = $file_info;
   $_SESSION['sidora_file_sessionid'] = $form_id;
-// Chunking might be enabled
+  // Chunking might be enabled
   $chunk = isset($_REQUEST["chunk"]) ? intval($_REQUEST["chunk"]) : 0;
   $chunks = isset($_REQUEST["chunks"]) ? intval($_REQUEST["chunks"]) : 0;
 
-// Open temp file
+  // Open temp file
   if (!$out = @fopen("{$filePath}.part", $chunks ? "ab" : "wb")) {
     die('{"jsonrpc" : "2.0", "error" : {"code": 102, "message": "Failed to open output stream."}, "id" : "id"}');
   }
@@ -1309,6 +1302,7 @@ function content_model_viewer_manage_form($pid, $action = 'manage') {
       $css_files[] = base_path() . $path . $query_string;
     }
   }
+  unset($_SESSION['sidora_file_sessionid']); //If no files are uploaded, this will never get initialised (and could use an old session by mistake)
   header("Content-type: application/json");
   echo json_encode(array('success' => TRUE, 'data' => $data, 'func' => NULL, 'settings' => $settings, 'js' => $files, 'css' => $css_files, 'refresh' => $refresh));
   exit();
@@ -2487,7 +2481,7 @@ function content_model_viewer_ingest_metadata_form(array &$form_state, $collecti
     // Queries the collection object for a child security datastream and if found parses it
     // to determine if this user is allowed to ingest in this collection
     // we assume if they are able to modify objects in the collection they can ingest as well.
-    drupal_set_message(t('You do not have premission to ingest here.'));
+    drupal_set_message(t('You do not have permission to ingest here.'));
     return FALSE;
   }
   if ($collection_pid == NULL) {
