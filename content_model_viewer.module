@@ -2029,7 +2029,7 @@ function content_model_viewer_remove_from_collection_choose_exit($pid, $value, $
     //if ($is_resource) {
     //$predicate = 'hasResource';
     //}
-    sidora_update_relationship(RELS_EXT_URI, $predicate, $recipient, $related, TRUE);
+    sidora_update_relationship(FBA_URI, $predicate, $recipient, $related, TRUE);
   }
   catch (Exception $e) {
     if ($internal_call) {
