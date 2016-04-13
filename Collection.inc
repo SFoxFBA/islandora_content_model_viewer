@@ -816,6 +816,11 @@ class Collection {
   private function getThumbnail($pid, $type = 'Text') {
     $module_path = drupal_get_path('module', 'content_model_viewer');
     module_load_include('inc', 'fedora_repository', 'api/fedora_item');
+    module_load_include('inc', 'sidora', 'includes/fba');
+    //SFox simple intercept to use single thumbnail image to the datacomponents list screen
+    if (sidora_is_datacomponent_extended($pid)) {
+      return '/' . $module_path . '/images/thumbnail/Thumbnail.png';
+    }
     $item = new Fedora_Item($pid);
     if (isset($item->datastreams['TN'])) {
       return url("viewer/$pid/TN/download");
